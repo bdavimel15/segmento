@@ -219,7 +219,7 @@ window.SEGMENTADOR = {
     }
 };
 </script>
-<script src="{{ asset('js/segmentador.js') }}"></script>
+<script src="{{ secure_asset('js/segmentador.js') }}"></script>
 <script>
 function setModo(novo){
     document.getElementById('tabIa').classList.toggle('active', novo === 'ia');
