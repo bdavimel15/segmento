@@ -3,8 +3,8 @@ PHP_MEMORY_LIMIT = "512M"
 
 [phases.setup]
 nixPkgs = [
-  "php83",
-  "php83Packages.composer"
+  "php84",
+  "php84Packages.composer"
 ]
 
 [phases.install]
@@ -14,13 +14,7 @@ cmds = [
 
 [phases.build]
 cmds = [
-  "mkdir -p storage/framework/cache/data",
-  "mkdir -p storage/framework/sessions",
-  "mkdir -p storage/framework/views",
-  "mkdir -p storage/logs",
-  "chmod -R 775 storage bootstrap/cache || true",
   "php artisan config:clear || true",
   "php artisan route:clear || true",
-  "php artisan view:clear || true",
-  "php artisan cache:clear || true"
+  "php artisan view:clear || true"
 ]
