@@ -3,8 +3,8 @@ PHP_MEMORY_LIMIT = "512M"
 
 [phases.setup]
 nixPkgs = [
-  "php83",
-  "php83Packages.composer"
+  "php84",
+  "php84Packages.composer"
 ]
 
 [phases.install]
