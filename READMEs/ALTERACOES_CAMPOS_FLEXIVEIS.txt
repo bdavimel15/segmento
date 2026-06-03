@@ -1,0 +1,5 @@
+Alterações desta versão:
+- Adicionados campos comuns de perfil do cliente: gênero, nome, telefone, e-mail, cidade, estado, bairro, newsletter, valor total comprado e próxima compra prevista.
+- A IA agora pode interpretar frases como "somente clientes homens", "clientes de Salvador", "email contém gmail".
+- O motor continua seguro: ele aceita muitos tipos de grupos, mas somente usando campos mapeados no catálogo segmento_cliente_campo.
+- Para liberar mais tipos no futuro, basta cadastrar novos campos no catálogo com expressão SQL segura.

@@ -1,0 +1,10 @@
+Alterações feitas nesta versão:
+- Interface de criação ficou mais humana e em pt-BR.
+- Operadores técnicos como equals/greater_than não aparecem mais para o usuário; agora aparecem como "é igual a", "é maior que", "há mais de X dias", etc.
+- Campo manual passou a usar nomes amigáveis.
+- Adicionada área "Escrever o que eu quero" com exemplos rápidos.
+- Adicionado resumo humano da regra antes do JSON/SQL.
+- JSON e SQL ficaram dentro de detalhes técnicos, para não assustar cliente final.
+- Adicionado suporte a "Clientes que compraram hoje" usando ultima_compra today.
+- Corrigido today: aniversário compara mês/dia; compra/cadastro compara a data de hoje.
+- Incluído PROMPT_ZAIA_ATUALIZADO.txt com instruções para ensinar a Zaia a reconhecer frases como "compraram hoje".

@@ -1,0 +1,14 @@
+Alterações desta versão:
+
+- Adicionado campo seguro busca_geral ao catálogo.
+- Quando a IA devolver um campo inexistente, o Laravel tenta corrigir pela mensagem original.
+- Frases como "clientes que começam com a letra B" agora viram nome starts_with B.
+- Busca geral procura em nome, CPF, telefone, e-mail, bairro, município e sexo.
+- Não foi liberado SQL livre para cliente final, pois isso quebraria a segurança do motor.
+- A flexibilidade agora acontece por mapeamento seguro e fallback controlado.
+
+Comandos recomendados:
+php artisan optimize:clear
+php artisan db:seed --class=SegmentoClienteCampoSeeder
+php artisan view:clear
+php artisan serve

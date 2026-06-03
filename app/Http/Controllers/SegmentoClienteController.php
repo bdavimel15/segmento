@@ -1,0 +1,611 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\SegmentoCliente;
+use App\Models\SegmentoClienteCampo;
+use App\Models\SegmentoClienteExecucao;
+use App\Models\SegmentoClientePreset;
+use App\Models\SegmentoClienteValidacao;
+use App\Models\Cliente;
+use App\Services\Segmentos\AiSegmentoInterpreter;
+use App\Services\Segmentos\SegmentoPreviewService;
+use App\Services\Segmentos\SegmentoRuleExplainer;
+use App\Services\Segmentos\SegmentoRuleHelper;
+use App\Services\Segmentos\SegmentoRuleValidator;
+use App\Services\Segmentos\SegmentoSqlBuilder;
+use Illuminate\Http\Request;
+use Throwable;
+
+class SegmentoClienteController extends Controller
+{
+
+    public function dashboard()
+    {
+        $metricas = [
+            'clientes' => Cliente::whereNull('excluido')->count(),
+            'segmentos' => SegmentoCliente::whereNull('excluido')->count(),
+            'segmentos_validados' => SegmentoCliente::whereNull('excluido')->where('status_validacao', 'validada')->count(),
+            'execucoes' => SegmentoClienteExecucao::count(),
+            'preview_total' => SegmentoCliente::whereNull('excluido')->sum('ultima_previa_qtd'),
+        ];
+
+        $ultimosSegmentos = SegmentoCliente::whereNull('excluido')
+            ->orderByDesc('segmento_cliente_id')
+            ->limit(6)
+            ->get();
+
+        $ultimasExecucoes = SegmentoClienteExecucao::orderByDesc('segmento_cliente_execucao_id')
+            ->limit(8)
+            ->get();
+
+        return view('dashboard.index', compact('metricas', 'ultimosSegmentos', 'ultimasExecucoes'));
+    }
+
+    public function index()
+    {
+        $segmentos = SegmentoCliente::whereNull('excluido')->orderByDesc('segmento_cliente_id')->limit(50)->get();
+        return view('segmentos.index', compact('segmentos'));
+    }
+
+    public function create()
+    {
+        $campos = SegmentoClienteCampo::where('ativo', 'S')->orderBy('ordem')->get();
+        return view('segmentos.create', compact('campos'));
+    }
+
+
+    public function presets()
+    {
+        $presets = SegmentoClientePreset::where('ativo', 'S')
+            ->orderBy('categoria')
+            ->orderBy('ordem')
+            ->orderBy('nome')
+            ->get()
+            ->groupBy(fn ($preset) => $preset->categoria ?: 'Geral');
+
+        return view('segmentos.presets', compact('presets'));
+    }
+
+    public function usarPreset(int $id, SegmentoRuleValidator $validator, SegmentoSqlBuilder $builder, SegmentoPreviewService $preview)
+    {
+        try {
+            $preset = SegmentoClientePreset::where('ativo', 'S')->findOrFail($id);
+            $regra = $preset->regra_json ?? [];
+
+            if (!is_array($regra)) {
+                throw new \RuntimeException('Preset com regra JSON inválida.');
+            }
+
+            $regra['origem'] = 'preset';
+            $regra['resumo_humano'] = $regra['resumo_humano'] ?? ('Modelo pronto: ' . $preset->nome);
+
+            $validator->validar($regra);
+            $sqlData = $builder->build($regra);
+            $previewData = $preview->preview($sqlData['sql'], $sqlData['bindings'], $regra);
+
+            $segmento = SegmentoCliente::create([
+                'nome' => $preset->nome,
+                'descricao' => $preset->descricao,
+                'tipo' => 'dinamico',
+                'origem' => 'preset',
+                'regra_json' => $regra,
+                'resumo_humano' => $regra['resumo_humano'] ?? null,
+                'status_validacao' => 'validada',
+                'limite' => $regra['limit'] ?? 25,
+                'ordenacao' => $this->mapOrdenacao($regra['order']['field'] ?? 'random'),
+                'ultima_previa_qtd' => $previewData['total'] ?? 0,
+                'ultima_previa_em' => now(),
+                'validado_em' => now(),
+            ]);
+
+            SegmentoClienteExecucao::create([
+                'segmento_cliente_id' => $segmento->segmento_cliente_id,
+                'canal' => 'preview',
+                'regra_json_snapshot' => $regra,
+                'sql_gerada_snapshot' => $sqlData['sql'],
+                'total_encontrado' => $previewData['total'] ?? 0,
+                'status' => ($previewData['ok'] ?? false) ? 'concluida' : 'erro',
+                'erro' => $previewData['erro'] ?? null,
+                'executado_em' => now(),
+            ]);
+
+            SegmentoClienteValidacao::create([
+                'segmento_cliente_id' => $segmento->segmento_cliente_id,
+                'status_anterior' => null,
+                'status_novo' => 'validada',
+                'regra_json_snapshot' => $regra,
+                'resumo_humano_snapshot' => $segmento->resumo_humano,
+                'observacao' => 'Criado a partir de modelo pronto e validado automaticamente.',
+            ]);
+
+            return redirect()->route('segmentos.show', $segmento->segmento_cliente_id)
+                ->with('ok', 'Modelo aplicado e segmento criado com sucesso.');
+        } catch (Throwable $e) {
+            return redirect()->route('segmentos.presets')->with('erro', $e->getMessage());
+        }
+    }
+
+    public function show(int $id, SegmentoSqlBuilder $builder, SegmentoPreviewService $preview)
+    {
+        $segmento = SegmentoCliente::findOrFail($id);
+        $execucoes = SegmentoClienteExecucao::where('segmento_cliente_id', $id)
+            ->orderByDesc('segmento_cliente_execucao_id')
+            ->limit(20)
+            ->get();
+        $validacoes = SegmentoClienteValidacao::where('segmento_cliente_id', $id)
+            ->orderByDesc('segmento_cliente_validacao_id')
+            ->limit(20)
+            ->get();
+
+        $sqlData = ['sql' => null, 'bindings' => []];
+        $previewData = ['ok' => false, 'total' => 0, 'exemplos' => []];
+
+        try {
+            $regra = $segmento->regra_json ?? [];
+            $sqlData = $builder->build($regra);
+            $previewData = $preview->preview($sqlData['sql'], $sqlData['bindings'], $regra);
+        } catch (Throwable $e) {
+            $previewData = ['ok' => false, 'total' => 0, 'exemplos' => [], 'explicacoes' => [], 'erro' => $e->getMessage()];
+        }
+
+        $resumoRegra = $previewData['resumo'] ?? (new SegmentoRuleExplainer())->resumoRegra($segmento->regra_json ?? []);
+
+        return view('segmentos.show', compact('segmento', 'execucoes', 'validacoes', 'sqlData', 'previewData', 'resumoRegra'));
+    }
+
+    public function interpretar(Request $request, AiSegmentoInterpreter $ai, SegmentoRuleValidator $validator, SegmentoSqlBuilder $builder, SegmentoPreviewService $preview)
+    {
+        try {
+            $texto = $request->input('texto', '');
+            $regra = $ai->interpretar($texto);
+
+            return $this->validarEGerarPreview($regra, $validator, $builder, $preview);
+        } catch (Throwable $e) {
+            return response()->json(['ok' => false, 'erro' => $e->getMessage()], 422);
+        }
+    }
+
+    public function manual(Request $request, AiSegmentoInterpreter $normalizer, SegmentoRuleValidator $validator, SegmentoSqlBuilder $builder, SegmentoPreviewService $preview)
+    {
+        try {
+            $groups = $this->parseGroupsFromRequest($request);
+
+            if ($groups === []) {
+                throw new \RuntimeException('Adicione pelo menos uma condição válida.');
+            }
+
+            $regra = $normalizer->normalizar([
+                'version' => 2,
+                'entity' => 'cliente',
+                'logic' => $request->input('logic', 'AND'),
+                'groups' => $groups,
+                'limit' => (int) $request->input('limit', 25),
+                'order' => [
+                    'field' => $request->input('order_field', 'random'),
+                    'direction' => $request->input('order_direction', 'asc'),
+                ],
+                'resumo_humano' => 'Grupo criado manualmente no editor visual.',
+            ], '', 'manual');
+
+            return $this->validarEGerarPreview($regra, $validator, $builder, $preview);
+        } catch (Throwable $e) {
+            return response()->json(['ok' => false, 'erro' => $e->getMessage()], 422);
+        }
+    }
+
+    public function preview(Request $request, SegmentoRuleValidator $validator, SegmentoSqlBuilder $builder, SegmentoPreviewService $preview)
+    {
+        try {
+            $regra = json_decode($request->input('regra_json', '{}'), true);
+            if (!is_array($regra)) {
+                throw new \RuntimeException('JSON de regra inválido.');
+            }
+            return $this->validarEGerarPreview($regra, $validator, $builder, $preview);
+        } catch (Throwable $e) {
+            return response()->json(['ok' => false, 'erro' => $e->getMessage()], 422);
+        }
+    }
+
+    public function refreshPreview(int $id, SegmentoRuleValidator $validator, SegmentoSqlBuilder $builder, SegmentoPreviewService $preview)
+    {
+        try {
+            $segmento = SegmentoCliente::findOrFail($id);
+            $regra = $segmento->regra_json ?? [];
+
+            $validator->validar($regra);
+            $sqlData = $builder->build($regra);
+            $previewData = $preview->preview($sqlData['sql'], $sqlData['bindings'], $regra);
+
+            $segmento->ultima_previa_qtd = $previewData['total'] ?? 0;
+            $segmento->ultima_previa_em = now();
+            $segmento->save();
+
+            SegmentoClienteExecucao::create([
+                'segmento_cliente_id' => $segmento->segmento_cliente_id,
+                'canal' => 'preview',
+                'regra_json_snapshot' => $regra,
+                'sql_gerada_snapshot' => $sqlData['sql'],
+                'total_encontrado' => $previewData['total'] ?? 0,
+                'status' => ($previewData['ok'] ?? false) ? 'concluida' : 'erro',
+                'erro' => $previewData['erro'] ?? null,
+                'executado_em' => now(),
+            ]);
+
+            return redirect()->route('segmentos.show', $id)->with('ok', 'Prévia atualizada.');
+        } catch (Throwable $e) {
+            return redirect()->route('segmentos.show', $id)->with('erro', $e->getMessage());
+        }
+    }
+
+    public function validar(int $id)
+    {
+        $segmento = SegmentoCliente::findOrFail($id);
+        $statusAnterior = $segmento->status_validacao;
+        $segmento->status_validacao = 'validada';
+        $segmento->validado_em = now();
+        $segmento->save();
+
+        SegmentoClienteValidacao::create([
+            'segmento_cliente_id' => $segmento->segmento_cliente_id,
+            'status_anterior' => $statusAnterior,
+            'status_novo' => 'validada',
+            'regra_json_snapshot' => $segmento->regra_json,
+            'resumo_humano_snapshot' => $segmento->resumo_humano,
+            'observacao' => 'Segmento validado manualmente no painel.',
+            'validado_por' => null,
+        ]);
+
+        return redirect()->route('segmentos.show', $id)->with('ok', 'Grupo validado com sucesso.');
+    }
+
+    public function reprovar(Request $request, int $id)
+    {
+        $segmento = SegmentoCliente::findOrFail($id);
+        $statusAnterior = $segmento->status_validacao;
+        $segmento->status_validacao = 'reprovada';
+        $segmento->motivo_reprovacao = $request->input('motivo', 'Reprovado manualmente.');
+        $segmento->save();
+
+        SegmentoClienteValidacao::create([
+            'segmento_cliente_id' => $segmento->segmento_cliente_id,
+            'status_anterior' => $statusAnterior,
+            'status_novo' => 'reprovada',
+            'regra_json_snapshot' => $segmento->regra_json,
+            'resumo_humano_snapshot' => $segmento->resumo_humano,
+            'observacao' => $segmento->motivo_reprovacao,
+            'validado_por' => null,
+        ]);
+
+        return redirect()->route('segmentos.show', $id)->with('ok', 'Grupo reprovado.');
+    }
+
+    public function store(Request $request, SegmentoRuleValidator $validator, SegmentoSqlBuilder $builder, SegmentoPreviewService $preview)
+    {
+        try {
+            $regra = json_decode($request->input('regra_json', '{}'), true);
+            if (!is_array($regra)) {
+                throw new \RuntimeException('JSON de regra inválido.');
+            }
+
+            $regra = SegmentoRuleHelper::enrichRule($regra);
+
+            $validator->validar($regra);
+            $sqlData = $builder->build($regra);
+            $previewData = $preview->preview($sqlData['sql'], $sqlData['bindings'], $regra);
+
+            $origem = $regra['origem'] ?? $request->input('origem', 'manual');
+
+            $segmento = SegmentoCliente::create([
+                'nome' => $request->input('nome', 'Novo segmento'),
+                'descricao' => $request->input('descricao'),
+                'tipo' => 'dinamico',
+                'origem' => in_array($origem, ['ia','preset'], true) ? $origem : 'manual',
+                'regra_json' => $regra,
+                'resumo_humano' => $regra['resumo_humano'] ?? null,
+                'status_validacao' => $origem === 'ia' ? 'pendente_validacao' : 'validada',
+                'limite' => $regra['limit'] ?? 25,
+                'ordenacao' => $this->mapOrdenacao($regra['order']['field'] ?? 'random'),
+                'ultima_previa_qtd' => $previewData['total'] ?? 0,
+                'ultima_previa_em' => now(),
+            ]);
+
+            SegmentoClienteExecucao::create([
+                'segmento_cliente_id' => $segmento->segmento_cliente_id,
+                'canal' => 'preview',
+                'regra_json_snapshot' => $regra,
+                'sql_gerada_snapshot' => $sqlData['sql'],
+                'total_encontrado' => $previewData['total'] ?? 0,
+                'status' => ($previewData['ok'] ?? false) ? 'concluida' : 'erro',
+                'erro' => $previewData['erro'] ?? null,
+                'executado_em' => now(),
+            ]);
+
+            SegmentoClienteValidacao::create([
+                'segmento_cliente_id' => $segmento->segmento_cliente_id,
+                'status_anterior' => null,
+                'status_novo' => $segmento->status_validacao,
+                'regra_json_snapshot' => $regra,
+                'resumo_humano_snapshot' => $segmento->resumo_humano,
+                'observacao' => $origem === 'ia' ? 'Criado por IA e enviado para validação.' : 'Criado manualmente e validado automaticamente.',
+            ]);
+
+            return redirect()->route('segmentos.show', $segmento->segmento_cliente_id)
+                ->with('ok', $origem === 'ia'
+                    ? 'Segmento criado! Revise a prévia e clique em Validar para liberar exportações.'
+                    : 'Segmento criado e validado! Você já pode exportar ou simular mensagens.');
+        } catch (Throwable $e) {
+            return back()->withInput()->with('erro', $e->getMessage());
+        }
+    }
+
+
+    public function edit(int $id)
+    {
+        $segmento = SegmentoCliente::findOrFail($id);
+        $campos = SegmentoClienteCampo::where('ativo', 'S')->orderBy('ordem')->get();
+
+        return view('segmentos.edit', compact('segmento', 'campos'));
+    }
+
+    public function update(Request $request, int $id, SegmentoRuleValidator $validator, SegmentoSqlBuilder $builder, SegmentoPreviewService $preview)
+    {
+        try {
+            $segmento = SegmentoCliente::findOrFail($id);
+            $regra = json_decode($request->input('regra_json', '{}'), true);
+
+            if (!is_array($regra)) {
+                throw new \RuntimeException('JSON de regra inválido.');
+            }
+
+            $regra = SegmentoRuleHelper::enrichRule($regra);
+
+            $validator->validar($regra);
+            $sqlData = $builder->build($regra);
+            $previewData = $preview->preview($sqlData['sql'], $sqlData['bindings'], $regra);
+
+            $segmento->update([
+                'nome' => $request->input('nome', $segmento->nome),
+                'descricao' => $request->input('descricao'),
+                'regra_json' => $regra,
+                'resumo_humano' => $regra['resumo_humano'] ?? $segmento->resumo_humano,
+                'limite' => $regra['limit'] ?? 25,
+                'ordenacao' => $this->mapOrdenacao($regra['order']['field'] ?? 'random'),
+                'ultima_previa_qtd' => $previewData['total'] ?? 0,
+                'ultima_previa_em' => now(),
+                'status_validacao' => $request->input('status_validacao', $segmento->status_validacao),
+            ]);
+
+            SegmentoClienteExecucao::create([
+                'segmento_cliente_id' => $segmento->segmento_cliente_id,
+                'canal' => 'preview',
+                'regra_json_snapshot' => $regra,
+                'sql_gerada_snapshot' => $sqlData['sql'],
+                'total_encontrado' => $previewData['total'] ?? 0,
+                'status' => ($previewData['ok'] ?? false) ? 'concluida' : 'erro',
+                'erro' => $previewData['erro'] ?? null,
+                'executado_em' => now(),
+            ]);
+
+            return redirect()->route('segmentos.show', $id)->with('ok', 'Segmento atualizado com sucesso.');
+        } catch (Throwable $e) {
+            return back()->withInput()->with('erro', $e->getMessage());
+        }
+    }
+
+    public function destroy(int $id)
+    {
+        try {
+            $segmento = SegmentoCliente::findOrFail($id);
+            $segmento->excluido = now();
+            $segmento->status_validacao = 'inativa';
+            $segmento->save();
+
+            return redirect()->route('segmentos.index')->with('ok', 'Segmento excluído com sucesso.');
+        } catch (Throwable $e) {
+            return back()->with('erro', $e->getMessage());
+        }
+    }
+
+
+    public function exportar(Request $request, int $id, SegmentoSqlBuilder $builder, SegmentoPreviewService $preview)
+    {
+        $tipo = (string) $request->query('tipo', 'csv');
+
+        return match ($tipo) {
+            'csv' => $this->exportarCsv($id, $builder, $preview),
+            'telefones', 'emails' => $this->copiarContatos($id, $tipo, $builder, $preview),
+            default => redirect()->route('segmentos.show', $id)->with('erro', 'Tipo de exportação inválido.'),
+        };
+    }
+
+    public function exportarCsv(int $id, SegmentoSqlBuilder $builder, SegmentoPreviewService $preview)
+    {
+        try {
+            $segmento = SegmentoCliente::findOrFail($id);
+            $regra = $segmento->regra_json ?? [];
+            $sqlData = $builder->build($regra);
+            $previewData = $preview->preview($sqlData['sql'], $sqlData['bindings'], $regra);
+            $rows = $previewData['exemplos'] ?? [];
+
+            $filename = 'segmento_' . $segmento->segmento_cliente_id . '_' . now()->format('Ymd_His') . '.csv';
+
+            SegmentoClienteExecucao::create([
+                'segmento_cliente_id' => $segmento->segmento_cliente_id,
+                'canal' => 'exportacao',
+                'regra_json_snapshot' => $segmento->regra_json ?? [],
+                'sql_gerada_snapshot' => $sqlData['sql'],
+                'total_encontrado' => $previewData['total'] ?? 0,
+                'total_processado' => count($rows),
+                'status' => ($previewData['ok'] ?? false) ? 'concluida' : 'erro',
+                'erro' => $previewData['erro'] ?? null,
+                'executado_em' => now(),
+            ]);
+
+            return response()->streamDownload(function () use ($rows) {
+                $out = fopen('php://output', 'w');
+                $cols = ['cliente_id','cli_nome','cli_email','cli_telefone','sexo_id','cli_cidade','cli_bairro','cli_qtd_pedidos','cli_cashback','cli_pontos_totais'];
+                fputcsv($out, $cols, ';');
+                foreach ($rows as $row) {
+                    fputcsv($out, array_map(fn ($col) => $row[$col] ?? '', $cols), ';');
+                }
+                fclose($out);
+            }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
+        } catch (Throwable $e) {
+            return back()->with('erro', $e->getMessage());
+        }
+    }
+
+    public function copiarContatos(int $id, string $tipo, SegmentoSqlBuilder $builder, SegmentoPreviewService $preview)
+    {
+        try {
+            $segmento = SegmentoCliente::findOrFail($id);
+            $regra = $segmento->regra_json ?? [];
+            $sqlData = $builder->build($regra);
+            $previewData = $preview->preview($sqlData['sql'], $sqlData['bindings'], $regra);
+            $rows = $previewData['exemplos'] ?? [];
+
+            $coluna = $tipo === 'emails' ? 'cli_email' : 'cli_telefone';
+            $valores = collect($rows)
+                ->pluck($coluna)
+                ->filter(fn ($v) => trim((string)$v) !== '')
+                ->unique()
+                ->values()
+                ->implode("
+");
+
+            return response($valores, 200, ['Content-Type' => 'text/plain; charset=UTF-8']);
+        } catch (Throwable $e) {
+            return response('Erro: ' . $e->getMessage(), 422, ['Content-Type' => 'text/plain; charset=UTF-8']);
+        }
+    }
+
+    private function validarEGerarPreview(array $regra, SegmentoRuleValidator $validator, SegmentoSqlBuilder $builder, SegmentoPreviewService $preview)
+    {
+        $regra = SegmentoRuleHelper::enrichRule($regra);
+        $validator->validar($regra);
+        $sqlData = $builder->build($regra);
+        $previewData = $preview->preview($sqlData['sql'], $sqlData['bindings'], $regra);
+
+        return response()->json([
+            'ok' => true,
+            'regra' => $regra,
+            'sql' => $sqlData['sql'],
+            'bindings' => $sqlData['bindings'],
+            'preview' => $previewData,
+            'resumo' => $previewData['resumo'] ?? (new SegmentoRuleExplainer())->resumoRegra($regra),
+        ]);
+    }
+
+    public function campoOpcoes(Request $request)
+    {
+        $campo = (string) $request->input('campo', '');
+        $q = trim((string) $request->input('q', ''));
+
+        if ($campo === 'municipio') {
+            $query = Cliente::query()->whereNull('excluido')->whereNotNull('cli_cidade')->where('cli_cidade', '!=', '');
+            if ($q !== '') {
+                $query->where('cli_cidade', 'like', '%' . $q . '%');
+            }
+
+            return response()->json(
+                $query->distinct()->orderBy('cli_cidade')->limit(20)->pluck('cli_cidade')->values()
+            );
+        }
+
+        if ($campo === 'bairro') {
+            $query = Cliente::query()->whereNull('excluido')->whereNotNull('cli_bairro')->where('cli_bairro', '!=', '');
+            if ($q !== '') {
+                $query->where('cli_bairro', 'like', '%' . $q . '%');
+            }
+
+            return response()->json(
+                $query->distinct()->orderBy('cli_bairro')->limit(20)->pluck('cli_bairro')->values()
+            );
+        }
+
+        if ($campo === 'estado') {
+            $ufs = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
+            if ($q !== '') {
+                $ufs = array_values(array_filter($ufs, fn ($uf) => str_starts_with(strtolower($uf), strtolower($q))));
+            }
+
+            return response()->json($ufs);
+        }
+
+        return response()->json([]);
+    }
+
+    /**
+     * @return array<int, array{logic: string, conditions: array<int, array<string, mixed>>}>
+     */
+    private function parseGroupsFromRequest(Request $request): array
+    {
+        $groups = [];
+
+        foreach ($request->input('groups', []) as $group) {
+            if (!is_array($group)) {
+                continue;
+            }
+
+            $conditions = [];
+
+            foreach ($group['conditions'] ?? [] as $condition) {
+                if (!is_array($condition) || empty($condition['field']) || empty($condition['operator'])) {
+                    continue;
+                }
+
+                $conditions[] = [
+                    'field' => $condition['field'],
+                    'operator' => $condition['operator'],
+                    'value' => $condition['value'] ?? null,
+                ];
+            }
+
+            if ($conditions !== []) {
+                $groups[] = [
+                    'logic' => strtoupper((string) ($group['logic'] ?? 'AND')) === 'OR' ? 'OR' : 'AND',
+                    'conditions' => $conditions,
+                ];
+            }
+        }
+
+        if ($groups !== []) {
+            return $groups;
+        }
+
+        $conditions = [];
+
+        foreach ($request->input('conditions', []) as $condition) {
+            if (!is_array($condition) || empty($condition['field']) || empty($condition['operator'])) {
+                continue;
+            }
+
+            $conditions[] = [
+                'field' => $condition['field'],
+                'operator' => $condition['operator'],
+                'value' => $condition['value'] ?? null,
+            ];
+        }
+
+        if ($conditions === []) {
+            return [];
+        }
+
+        return [[
+            'logic' => strtoupper((string) $request->input('logic', 'AND')) === 'OR' ? 'OR' : 'AND',
+            'conditions' => $conditions,
+        ]];
+    }
+
+    private function mapOrdenacao(string $field): string
+    {
+        return match ($field) {
+            'mais_recentes', 'data_cadastro' => 'mais_recentes',
+            'mais_antigos' => 'mais_antigos',
+            'ultima_compra_desc' => 'ultima_compra_desc',
+            'ultima_compra_asc' => 'ultima_compra_asc',
+            default => 'aleatoria',
+        };
+    }
+}

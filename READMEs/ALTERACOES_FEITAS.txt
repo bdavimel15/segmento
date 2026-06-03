@@ -1,0 +1,176 @@
+# Alterações feitas no SQL
+
+## 1. Tirei o peso desnecessário
+
+O arquivo original estava muito grande porque tinha dados/INSERTs antigos.
+Nesta versão, deixei só a estrutura necessária para começar o motor.
+
+Removido:
+- massa de dados antiga;
+- INSERTs gigantes;
+- SQL legado dos grupos antigos;
+- coisas que não eram essenciais para o MVP.
+
+---
+
+## 2. O SQL agora cria o banco sozinho
+
+Adicionei:
+
+CREATE DATABASE IF NOT EXISTS segmentador_clientes;
+USE segmentador_clientes;
+
+Então você não precisa criar o banco manualmente.
+
+---
+
+## 3. Mantive só as tabelas base necessárias
+
+Deixei versões mínimas dessas tabelas:
+
+- cliente
+- contato
+- pedido
+- status
+- cashback
+- cashback_configuracao
+- pedido_status
+- pedido_item
+- notificacao_programada_envio
+- estabelecimento
+- contato_grupo
+
+Isso permite testar o motor mesmo sem importar o banco completo antigo.
+
+---
+
+## 4. Corrigi a tabela contato_grupo para teste
+
+No dump antigo, a chave primária estava em cog_nome.
+Para o projeto novo, deixei contato_grupo_id como PRIMARY KEY.
+
+Motivo:
+- fica mais correto;
+- evita problema com nome repetido;
+- combina melhor com contato_grupo_id_legado.
+
+---
+
+## 5. Criei a view view_cliente_contato
+
+Ela junta dados úteis do cliente para campanhas:
+
+- contato_id
+- nome
+- celular
+- e-mail
+- quantidade de pedidos
+- aniversário
+- próxima compra
+- cashback disponível
+
+---
+
+## 6. Criei o motor novo
+
+Adicionado:
+
+- segmento_cliente
+- segmento_cliente_execucao
+- segmento_cliente_campo
+- segmento_cliente_validacao
+- segmento_cliente_preset
+
+Essas tabelas seguem a documentação do motor.
+
+---
+
+## 7. JSON virou regra principal
+
+A tabela segmento_cliente salva:
+
+- regra_json
+- resumo_humano
+- status_validacao
+- limite
+- ordenacao
+
+A SQL não é salva como regra principal.
+A SQL só deve ser gerada pelo Laravel na prévia ou execução.
+
+---
+
+## 8. Adicionei catálogo de campos permitidos
+
+Na tabela segmento_cliente_campo, cadastrei campos iniciais:
+
+- nome_cliente
+- telefone_cliente
+- email_cliente
+- data_cadastro
+- aniversario
+- qtd_pedidos
+- qtd_pedidos_confirmados
+- ultima_compra
+- primeira_compra
+- valor_total_compras
+- cashback_saldo
+- proxima_compra
+- recebeu_notificacao_nos_ultimos_dias
+- produto_comprado
+
+Isso impede a Zaia/IA de inventar campos.
+
+---
+
+## 9. Adicionei presets iniciais
+
+Na tabela segmento_cliente_preset, adicionei:
+
+- Aniversariantes do dia
+- Clientes sem compra há 30 dias
+- Clientes com mais de 2 pedidos
+- Clientes com cashback
+- Clientes cadastrados sem pedido
+
+---
+
+## 10. Adicionei índices úteis
+
+Adicionei índices em campos usados com frequência:
+
+- cliente_id
+- status_id
+- ped_data
+- excluido
+- cadastrado
+- status_validacao
+- categoria
+- ativo
+
+Isso ajuda na performance.
+
+---
+
+## 11. Evitei foreign keys por enquanto
+
+Não coloquei FK obrigatória nessa versão.
+
+Motivo:
+- facilita importar;
+- evita erro por ordem de tabelas;
+- evita travar se o banco antigo tiver dados inconsistentes;
+- é melhor para MVP.
+
+Depois, quando estabilizar, dá pra adicionar FKs.
+
+---
+
+## 12. Adicionei BAT para importar
+
+Incluí:
+
+IMPORTAR_NO_WINDOWS.bat
+
+Ele tenta rodar o SQL automaticamente usando o comando mysql.
+

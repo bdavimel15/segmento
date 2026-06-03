@@ -1,0 +1,18 @@
+Atualização adicionada:
+
+- Tela de detalhes do segmento: /segmentos/{id}
+- Botão Ver detalhes na listagem
+- Botão Atualizar prévia
+- Botão Validar grupo
+- Botão Reprovar grupo
+- Botão Executar/registrar por canal
+- Exibição do JSON oficial
+- Exibição da SQL gerada e bindings
+- Exibição da prévia dos clientes/contatos
+- Histórico de execuções
+- Histórico de validações
+
+Comandos após substituir os arquivos:
+php artisan optimize:clear
+php artisan view:clear
+php artisan serve

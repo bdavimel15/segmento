@@ -1,0 +1,11 @@
+*.sqlite*
+*.sql
+*.zip
+*.env
+/vendor
+/node_modules
+/.env
+/storage/logs
+/bootstrap/cache/*.php
+/public/hot
+/public/storage

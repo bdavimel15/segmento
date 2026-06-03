@@ -1,0 +1,19 @@
+Alterações desta versão:
+- Validador ficou mais flexível: aceita operadores seguros globais, sem travar por combinação campo/operador.
+- Não foi liberado SQL livre. O sistema continua bloqueando SQL perigoso e usando apenas SELECT com bindings.
+- IA agora corrige intenções comuns mesmo quando a Zaia devolve campo genérico:
+  - Clientes acima de 40 anos => idade greater_than 40
+  - Clientes abaixo de 30 anos => idade less_than 30
+  - Clientes que começam com a letra B => nome starts_with B
+  - Homens/mulheres => sexo equals Masculino/Feminino
+- Busca geral agora usa apenas colunas reais existentes da tabela cliente:
+  cli_nome, cli_cpf, cli_telefone, cli_email, sexo_id, cli_newsletter, cliente_origem_id.
+- Removida dependência de colunas inexistentes como cli_bairro e cli_cidade na busca geral.
+- SQL Builder passou a converter operadores incompatíveis para filtros seguros, em vez de quebrar a tela.
+- Blocos de consulta continuam protegidos contra DROP, DELETE, UPDATE, INSERT, ALTER, TRUNCATE e CREATE.
+
+Comandos recomendados:
+php artisan optimize:clear
+php artisan view:clear
+php artisan db:seed --class=SegmentoClienteCampoSeeder
+php artisan serve

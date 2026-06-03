@@ -1,0 +1,20 @@
+COMO POPULAR O BANCO COM DADOS FALSOS
+
+Opção rápida no Windows:
+1. Abra a pasta do projeto.
+2. Execute POPULAR_BANCO_MOCK.bat.
+
+Opção manual:
+php artisan optimize:clear
+php artisan migrate
+php artisan db:seed --class=SegmentoClienteCampoSeeder
+php artisan db:seed --class=MockClienteSeeder
+
+O seeder cria 20 clientes falsos, pedidos confirmados, alguns pedidos cancelados e cashbacks mockados.
+Ele apaga e recria apenas registros com e-mail @mock.local e status com nome Mock.
+
+Depois teste uma regra como:
+Clientes sem comprar há 30 dias
+
+ou:
+Clientes que compraram mais de 2 vezes e não compram há 30 dias

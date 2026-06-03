@@ -1,0 +1,79 @@
+# Como rodar
+
+## Jeito mais fácil no Windows
+
+1. Extraia este ZIP.
+2. Abra a pasta extraída.
+3. Dê dois cliques em:
+
+`IMPORTAR_NO_WINDOWS.bat`
+
+4. Digite o usuário do MySQL. Normalmente é:
+
+`root`
+
+5. Se não tiver senha, só aperte Enter.
+
+O script cria automaticamente o banco:
+
+`segmentador_clientes`
+
+E cria as tabelas do motor.
+
+---
+
+## Pelo phpMyAdmin
+
+1. Abra o phpMyAdmin.
+2. Vá em SQL.
+3. Abra o arquivo:
+
+`01_BANCO_LIMPO_E_MOTOR_SEGMENTACAO.sql`
+
+4. Copie tudo.
+5. Cole no phpMyAdmin.
+6. Clique em Executar.
+
+Não precisa criar banco antes, porque o SQL já tem:
+
+`CREATE DATABASE IF NOT EXISTS segmentador_clientes;`
+
+---
+
+## Pelo terminal
+
+Na pasta dos arquivos:
+
+```bash
+mysql -u root < 01_BANCO_LIMPO_E_MOTOR_SEGMENTACAO.sql
+```
+
+Com senha:
+
+```bash
+mysql -u root -p < 01_BANCO_LIMPO_E_MOTOR_SEGMENTACAO.sql
+```
+
+---
+
+## Tabelas principais criadas
+
+- segmento_cliente
+- segmento_cliente_campo
+- segmento_cliente_execucao
+- segmento_cliente_validacao
+- segmento_cliente_preset
+
+Também deixei tabelas base mínimas para teste:
+
+- cliente
+- contato
+- pedido
+- status
+- cashback
+- pedido_item
+- pedido_status
+- estabelecimento
+- notificacao_programada_envio
+- contato_grupo
+
