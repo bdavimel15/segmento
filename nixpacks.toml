@@ -6,7 +6,11 @@ COMPOSER_ALLOW_SUPERUSER = "1"
 nixPkgs = [
   "php84",
   "php84Packages.composer",
-  "nodejs_22"
+  "php84Extensions.pdo",
+  "php84Extensions.pdo_mysql",
+  "php84Extensions.mysqli",
+  "nodejs_22",
+  "mysql80"
 ]
 
 [phases.install]
