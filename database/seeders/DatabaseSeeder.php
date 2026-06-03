@@ -11,6 +11,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             SegmentoClienteCampoSeeder::class,
             SegmentoPresetSeeder::class,
+            MockClienteSeeder::class,
         ]);
     }
 }

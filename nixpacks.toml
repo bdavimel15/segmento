@@ -1,23 +1,19 @@
-[variables]
-PHP_MEMORY_LIMIT = "512M"
-
 [phases.setup]
 nixPkgs = [
   "php84",
   "php84Packages.composer",
-  "php84Extensions.pdo",
-  "php84Extensions.pdo_mysql",
-  "php84Extensions.mysqli",
-  "mysql84"
+  "nodejs_22"
 ]
 
 [phases.install]
 cmds = [
-  "composer install --no-dev --optimize-autoloader --no-interaction"
+  "composer install --no-dev --optimize-autoloader --no-interaction",
+  "npm ci"
 ]
 
 [phases.build]
 cmds = [
+  "npm run build",
   "mkdir -p storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs bootstrap/cache",
   "chmod -R 775 storage bootstrap/cache || true",
   "php artisan config:clear || true",
