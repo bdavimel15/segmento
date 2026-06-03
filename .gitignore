@@ -1,11 +1,107 @@
-*.sqlite*
-*.sql
-*.zip
-*.env
+# =========================
+
+# Laravel
+
+# =========================
+
 /vendor
 /node_modules
-/.env
-/storage/logs
+
+# Environment
+
+.env
+.env.*
+!.env.example
+
+# Logs
+
+/storage/logs/*
+!/storage/logs/.gitignore
+
+# Cache
+
 /bootstrap/cache/*.php
+/bootstrap/cache/packages.php
+/bootstrap/cache/services.php
+
+# Storage
+
+/storage/app/*
+!/storage/app/.gitignore
+
+/storage/framework/cache/*
+!/storage/framework/cache/.gitignore
+
+/storage/framework/sessions/*
+!/storage/framework/sessions/.gitignore
+
+/storage/framework/testing/*
+!/storage/framework/testing/.gitignore
+
+/storage/framework/views/*
+!/storage/framework/views/.gitignore
+
+# Public
+
 /public/hot
 /public/storage
+
+# Laravel Pint
+
+.pint.cache
+
+# PHPUnit
+
+.phpunit.result.cache
+
+# IDE
+
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# OS
+
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Composer
+
+composer.phar
+
+# NPM
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Railway
+
+.railway
+
+# Docker
+
+docker-compose.override.yml
+
+# Temporary
+
+*.log
+*.tmp
+*.bak
+*.swp
+
+# SQLite local
+
+database/*.sqlite
+
+# Generated assets
+
+/public/build
+/public/mix-manifest.json
+
+# Tinker
+
+.psysh_history
