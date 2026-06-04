@@ -91,7 +91,7 @@ class SegmentoPresetSeeder extends Seeder
             'regra_json' => $regraJson,
             'json' => $regraJson,
             'payload' => $regraJson,
-            'ativo' => 1,
+            'ativo' => 'S',
             'status' => 'ativo',
             'ordem' => $ordem,
             'criado_em' => $now,
