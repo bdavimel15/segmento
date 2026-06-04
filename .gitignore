@@ -107,4 +107,4 @@ database/*.sqlite
 .psysh_history
 
 
-*.zip
+*.zip*.zip
