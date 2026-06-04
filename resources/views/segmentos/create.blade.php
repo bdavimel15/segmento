@@ -150,7 +150,7 @@
                     return match ($campo->chave) {
                         'bairro', 'municipio', 'estado' => 'localizacao',
                         'newsletter', 'busca_geral', 'origem', 'notificacao_recente' => 'marketing',
-                        'qtd_pedidos', 'ultima_compra', 'ultimo_pedido', 'primeira_compra', 'valor_total_comprado', 'status_pedido', 'canal_pedido', 'forma_pagamento', 'carrinho_abandonado', 'produto_comprado' => 'compras',
+                        'qtd_pedidos', 'ultimo_pedido', 'primeira_compra', 'valor_total_comprado', 'carrinho_abandonado', 'produto_comprado' => 'compras',
                         'cashback', 'cashback_expira_em', 'pontos_totais' => 'financeiro',
                         default => 'cliente',
                     };
@@ -200,6 +200,36 @@
 
 @push('scripts')
 <script>
+@php
+    $produtoOptions = [];
+    try {
+        if (\Illuminate\Support\Facades\Schema::hasTable('produtos')) {
+            $produtoOptions = \Illuminate\Support\Facades\DB::table('produtos')
+                ->where(function ($q) {
+                    if (\Illuminate\Support\Facades\Schema::hasColumn('produtos', 'ativo')) {
+                        $q->where('ativo', 'S');
+                    }
+                })
+                ->orderBy('nome')
+                ->pluck('nome')
+                ->values()
+                ->all();
+        }
+    } catch (\Throwable $e) {
+        $produtoOptions = [];
+    }
+
+    $selectOptions = [
+        'sexo' => ['Masculino', 'Feminino'],
+        'newsletter' => ['Sim', 'Não'],
+        'funcionario' => ['Sim', 'Não'],
+        'produto_comprado' => $produtoOptions,
+        'origem_contato' => ['WhatsApp', 'Instagram', 'iFood', 'Balcão', 'Site', 'Telefone'],
+        'canal_pedido' => ['WhatsApp', 'iFood', 'Balcão', 'Delivery próprio', 'Site', 'Instagram'],
+        'forma_pagamento' => ['Pix', 'Cartão de crédito', 'Cartão de débito', 'Dinheiro', 'Vale refeição'],
+        'status_pedido' => ['Confirmado', 'Pendente', 'Cancelado', 'Entregue'],
+    ];
+@endphp
 window.SEGMENTADOR = {
     campos: {!! \Illuminate\Support\Js::from(
         $campos->map(fn ($c) => [
@@ -209,9 +239,9 @@ window.SEGMENTADOR = {
             'categoria' => $c->categoria ?? 'geral',
             'operadores' => $c->operadores_json ?? [],
             'descricao' => $c->descricao,
-            'opcoes' => $c->opcoes_json ?? [],
         ])->values()
     ) !!},
+    selectOptions: {!! \Illuminate\Support\Js::from($selectOptions) !!},
     campoOpcoesUrl: @json(route('segmentos.campoOpcoes')),
     csrf: @json(csrf_token()),
     routes: {
@@ -220,7 +250,7 @@ window.SEGMENTADOR = {
     }
 };
 </script>
-<script src="{{ app()->environment('production') ? secure_asset('js/segmentador.js') : asset('js/segmentador.js') }}"></script>
+<script src="{{ asset('js/segmentador.js') }}"></script>
 <script>
 function setModo(novo){
     document.getElementById('tabIa').classList.toggle('active', novo === 'ia');

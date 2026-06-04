@@ -15,6 +15,8 @@ use App\Services\Segmentos\SegmentoRuleHelper;
 use App\Services\Segmentos\SegmentoRuleValidator;
 use App\Services\Segmentos\SegmentoSqlBuilder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Throwable;
 
 class SegmentoClienteController extends Controller
@@ -502,43 +504,6 @@ class SegmentoClienteController extends Controller
         $campo = (string) $request->input('campo', '');
         $q = trim((string) $request->input('q', ''));
 
-        $campoModel = SegmentoClienteCampo::where('ativo', 'S')->where('chave', $campo)->first();
-        $opcoes = $campoModel?->opcoes_json;
-
-        if (is_string($opcoes)) {
-            $decoded = json_decode($opcoes, true);
-            $opcoes = is_array($decoded) ? $decoded : [];
-        }
-
-        if (is_array($opcoes) && $opcoes !== []) {
-            $items = array_values(array_filter($opcoes, function ($item) use ($q) {
-                if ($q === '') {
-                    return true;
-                }
-
-                return str_contains(mb_strtolower((string) $item), mb_strtolower($q));
-            }));
-
-            return response()->json(array_slice($items, 0, 30));
-        }
-
-        if ($campo === 'produto_comprado') {
-            $items = [];
-
-            if (\Illuminate\Support\Facades\Schema::hasTable('produto')) {
-                $items = \Illuminate\Support\Facades\DB::table('produto')
-                    ->whereNull('excluido')
-                    ->when($q !== '', fn ($query) => $query->where('pro_nome', 'like', '%' . $q . '%'))
-                    ->orderBy('pro_nome')
-                    ->limit(30)
-                    ->pluck('pro_nome')
-                    ->values()
-                    ->all();
-            }
-
-            return response()->json($items);
-        }
-
         if ($campo === 'municipio') {
             $query = Cliente::query()->whereNull('excluido')->whereNotNull('cli_cidade')->where('cli_cidade', '!=', '');
             if ($q !== '') {
@@ -559,6 +524,53 @@ class SegmentoClienteController extends Controller
             return response()->json(
                 $query->distinct()->orderBy('cli_bairro')->limit(20)->pluck('cli_bairro')->values()
             );
+        }
+
+        if ($campo === 'estado') {
+            $ufs = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
+            if ($q !== '') {
+                $ufs = array_values(array_filter($ufs, fn ($uf) => str_starts_with(strtolower($uf), strtolower($q))));
+            }
+
+            return response()->json($ufs);
+        }
+
+        if ($campo === 'produto_comprado') {
+            if (!Schema::hasTable('produtos')) {
+                return response()->json([]);
+            }
+
+            $query = DB::table('produtos')->whereNotNull('nome')->where('nome', '!=', '');
+
+            if (Schema::hasColumn('produtos', 'ativo')) {
+                $query->where('ativo', 'S');
+            }
+
+            if ($q !== '') {
+                $query->where('nome', 'like', '%' . $q . '%');
+            }
+
+            return response()->json(
+                $query->distinct()->orderBy('nome')->limit(50)->pluck('nome')->values()
+            );
+        }
+
+        $listasFixas = [
+            'sexo' => ['Masculino', 'Feminino'],
+            'newsletter' => ['Sim', 'Não'],
+            'funcionario' => ['Sim', 'Não'],
+            'origem_contato' => ['WhatsApp', 'Instagram', 'iFood', 'Balcão', 'Site', 'Telefone'],
+            'canal_pedido' => ['WhatsApp', 'iFood', 'Balcão', 'Delivery próprio', 'Site', 'Instagram'],
+            'forma_pagamento' => ['Pix', 'Cartão de crédito', 'Cartão de débito', 'Dinheiro', 'Vale refeição'],
+            'status_pedido' => ['Confirmado', 'Pendente', 'Cancelado', 'Entregue'],
+        ];
+
+        if (isset($listasFixas[$campo])) {
+            $items = $listasFixas[$campo];
+            if ($q !== '') {
+                $items = array_values(array_filter($items, fn ($item) => str_contains(mb_strtolower($item), mb_strtolower($q))));
+            }
+            return response()->json($items);
         }
 
         return response()->json([]);
