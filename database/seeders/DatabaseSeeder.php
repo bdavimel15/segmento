@@ -9,9 +9,12 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
-            SegmentoClienteCampoSeeder::class,
-            SegmentoPresetSeeder::class,
             MockClienteSeeder::class,
+            ProdutoRestauranteSeeder::class,
+            PedidoProdutoClienteSeeder::class,
+            SegmentoClienteCampoSeeder::class,
+            ProdutoCampoFiltroSeeder::class,
+            SegmentoPresetSeeder::class,
         ]);
     }
 }

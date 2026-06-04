@@ -68,6 +68,9 @@ class MockClienteSeeder extends Seeder
             ['Belo Horizonte', 'MG', 'Savassi'],
         ];
 
+        $canaisPedido = ['WhatsApp', 'Balcão', 'Delivery próprio', 'iFood', 'Site', 'Instagram'];
+        $formasPagamento = ['Pix', 'Cartão de crédito', 'Cartão de débito', 'Dinheiro', 'Vale refeição'];
+
         foreach ($clientes as $index => [$nome, $sexo, $cadastroDiasAtras, $comprasDiasAtras, $cashback]) {
             [$cidade, $estado, $bairro] = $cidades[$index % count($cidades)];
             $createdAt = Carbon::now()->subDays($cadastroDiasAtras);
@@ -104,6 +107,8 @@ class MockClienteSeeder extends Seeder
                     'estabelecimento_id' => 1,
                     'status_id' => $statusConfirmadoId,
                     'ped_valor_total' => 49.90 + ($pedidoIndex * 25),
+                    'canal_pedido' => $canaisPedido[($index + $pedidoIndex) % count($canaisPedido)],
+                    'forma_pagamento' => $formasPagamento[($index + $pedidoIndex) % count($formasPagamento)],
                     'excluido' => null,
                     'cadastrado' => $pedidoData,
                     'atualizado' => now(),
@@ -136,6 +141,8 @@ class MockClienteSeeder extends Seeder
                     'estabelecimento_id' => 1,
                     'status_id' => $statusCanceladoId,
                     'ped_valor_total' => 99.90,
+                    'canal_pedido' => $canaisPedido[$index % count($canaisPedido)],
+                    'forma_pagamento' => $formasPagamento[$index % count($formasPagamento)],
                     'excluido' => null,
                     'cadastrado' => Carbon::now()->subDays(2),
                     'atualizado' => now(),

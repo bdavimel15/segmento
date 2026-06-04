@@ -222,7 +222,7 @@ class SegmentoRuleExplainer
             return $operator === 'equals' ? $match : !$match;
         }
 
-        if (in_array($field, ['nome', 'cpf', 'telefone', 'email', 'bairro', 'municipio', 'estado', 'origem_contato', 'produto_comprado', 'produto_nome', 'produto'], true)) {
+        if (in_array($field, ['nome', 'cpf', 'telefone', 'email', 'bairro', 'municipio', 'estado', 'origem_contato', 'status_pedido', 'canal_pedido', 'forma_pagamento', 'produto_comprado', 'produto_nome', 'produto'], true)) {
             return $this->matchText($operator, (string) $value, $found);
         }
 
@@ -429,6 +429,9 @@ class SegmentoRuleExplainer
             'data_cadastro' => $row['cadastrado'] ?? null,
             'cashback_expira_em' => $row['_seg_cashback_expira_em'] ?? null,
             'carrinho_abandonado' => $row['_seg_carrinho_abandonado'] ?? null,
+            'status_pedido' => $row['_seg_status_pedido'] ?? null,
+            'canal_pedido' => $row['_seg_canal_pedido'] ?? null,
+            'forma_pagamento' => $row['_seg_forma_pagamento'] ?? null,
             'produto_comprado', 'produto_nome', 'produto' => $row['_seg_produto_comprado'] ?? $row['_seg_produto_nome'] ?? $row['_seg_produto'] ?? null,
             default => $row[$field] ?? null,
         };

@@ -150,7 +150,7 @@
                     return match ($campo->chave) {
                         'bairro', 'municipio', 'estado' => 'localizacao',
                         'newsletter', 'busca_geral', 'origem', 'notificacao_recente' => 'marketing',
-                        'qtd_pedidos', 'ultimo_pedido', 'primeira_compra', 'valor_total_comprado', 'carrinho_abandonado', 'produto_comprado' => 'compras',
+                        'qtd_pedidos', 'ultima_compra', 'ultimo_pedido', 'primeira_compra', 'valor_total_comprado', 'status_pedido', 'canal_pedido', 'forma_pagamento', 'carrinho_abandonado', 'produto_comprado' => 'compras',
                         'cashback', 'cashback_expira_em', 'pontos_totais' => 'financeiro',
                         default => 'cliente',
                     };
@@ -209,6 +209,7 @@ window.SEGMENTADOR = {
             'categoria' => $c->categoria ?? 'geral',
             'operadores' => $c->operadores_json ?? [],
             'descricao' => $c->descricao,
+            'opcoes' => $c->opcoes_json ?? [],
         ])->values()
     ) !!},
     campoOpcoesUrl: @json(route('segmentos.campoOpcoes')),

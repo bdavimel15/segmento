@@ -502,6 +502,43 @@ class SegmentoClienteController extends Controller
         $campo = (string) $request->input('campo', '');
         $q = trim((string) $request->input('q', ''));
 
+        $campoModel = SegmentoClienteCampo::where('ativo', 'S')->where('chave', $campo)->first();
+        $opcoes = $campoModel?->opcoes_json;
+
+        if (is_string($opcoes)) {
+            $decoded = json_decode($opcoes, true);
+            $opcoes = is_array($decoded) ? $decoded : [];
+        }
+
+        if (is_array($opcoes) && $opcoes !== []) {
+            $items = array_values(array_filter($opcoes, function ($item) use ($q) {
+                if ($q === '') {
+                    return true;
+                }
+
+                return str_contains(mb_strtolower((string) $item), mb_strtolower($q));
+            }));
+
+            return response()->json(array_slice($items, 0, 30));
+        }
+
+        if ($campo === 'produto_comprado') {
+            $items = [];
+
+            if (\Illuminate\Support\Facades\Schema::hasTable('produto')) {
+                $items = \Illuminate\Support\Facades\DB::table('produto')
+                    ->whereNull('excluido')
+                    ->when($q !== '', fn ($query) => $query->where('pro_nome', 'like', '%' . $q . '%'))
+                    ->orderBy('pro_nome')
+                    ->limit(30)
+                    ->pluck('pro_nome')
+                    ->values()
+                    ->all();
+            }
+
+            return response()->json($items);
+        }
+
         if ($campo === 'municipio') {
             $query = Cliente::query()->whereNull('excluido')->whereNotNull('cli_cidade')->where('cli_cidade', '!=', '');
             if ($q !== '') {
@@ -522,15 +559,6 @@ class SegmentoClienteController extends Controller
             return response()->json(
                 $query->distinct()->orderBy('cli_bairro')->limit(20)->pluck('cli_bairro')->values()
             );
-        }
-
-        if ($campo === 'estado') {
-            $ufs = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
-            if ($q !== '') {
-                $ufs = array_values(array_filter($ufs, fn ($uf) => str_starts_with(strtolower($uf), strtolower($q))));
-            }
-
-            return response()->json($ufs);
         }
 
         return response()->json([]);

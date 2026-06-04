@@ -83,6 +83,12 @@ class SegmentoSqlBuilder
             $select[] = 'prod.produtos_comprados AS _seg_produto';
         }
 
+        if (isset($joins['pedido_canais'])) {
+            $select[] = 'pcanal.status_pedido AS _seg_status_pedido';
+            $select[] = 'pcanal.canal_pedido AS _seg_canal_pedido';
+            $select[] = 'pcanal.forma_pagamento AS _seg_forma_pagamento';
+        }
+
         if (isset($joins['cashback'])) {
             $select[] = 'COALESCE(cb.cashback, 0) AS _seg_cashback';
             $select[] = 'COALESCE(cb.cashback, 0) AS _seg_cashback_saldo';
@@ -116,6 +122,10 @@ class SegmentoSqlBuilder
             $joins['cashback'] = "LEFT JOIN (SELECT cliente_id, SUM(cas_valor) cashback, {$expira} cashback_expira_em FROM cashback WHERE excluido IS NULL GROUP BY cliente_id) cb ON cb.cliente_id = c.cliente_id";
         }
 
+        if (in_array($field, ['status_pedido', 'canal_pedido', 'forma_pagamento'], true)) {
+            $joins['pedido_canais'] = "LEFT JOIN (SELECT p.cliente_id, MAX(s.sta_nome) status_pedido, MAX(p.canal_pedido) canal_pedido, MAX(p.forma_pagamento) forma_pagamento FROM pedido p LEFT JOIN status s ON s.status_id = p.status_id WHERE p.excluido IS NULL GROUP BY p.cliente_id) pcanal ON pcanal.cliente_id = c.cliente_id";
+        }
+
         if ($field === 'carrinho_abandonado') {
             $joins['carrinho'] = "LEFT JOIN view_carrinho_abandonado vca ON vca.cliente_id = c.cliente_id";
         }
@@ -144,7 +154,7 @@ class SegmentoSqlBuilder
 
     private function normalizarValor(string $field, string $op, mixed $value): mixed
     {
-        if (is_string($value) && in_array($field, ['sexo', 'newsletter', 'funcionario', 'bairro', 'municipio', 'estado', 'email', 'telefone', 'cpf', 'nome', 'produto_comprado', 'produto_nome', 'produto'], true)) {
+        if (is_string($value) && in_array($field, ['sexo', 'newsletter', 'funcionario', 'bairro', 'municipio', 'estado', 'email', 'telefone', 'cpf', 'nome', 'origem_contato', 'status_pedido', 'canal_pedido', 'forma_pagamento', 'produto_comprado', 'produto_nome', 'produto'], true)) {
             $value = trim($value);
         }
 
@@ -181,7 +191,7 @@ class SegmentoSqlBuilder
                 : ["({$expr} IS NULL OR {$boolExpr} NOT IN ({$placeholders}))", $valores];
         }
 
-        if (in_array($field, ['bairro', 'municipio', 'estado', 'email', 'telefone', 'cpf', 'nome', 'origem_contato', 'produto_comprado', 'produto_nome', 'produto'], true)) {
+        if (in_array($field, ['bairro', 'municipio', 'estado', 'email', 'telefone', 'cpf', 'nome', 'origem_contato', 'status_pedido', 'canal_pedido', 'forma_pagamento', 'produto_comprado', 'produto_nome', 'produto'], true)) {
             return $this->textoConditionToSql($expr, $op, (string)$value);
         }
 

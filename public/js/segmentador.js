@@ -32,7 +32,7 @@
     const NO_VALUE_OPS = ['today','yesterday','is_true','is_false','exists','not_exists','is_empty','is_not_empty'];
     const DATE_OPS = ['equals_date','before_date','after_date','between_dates'];
     const DAY_OPS = ['last_x_days','next_x_days','exactly_x_days_ago','more_than_x_days_ago','less_than_x_days_ago'];
-    const DATE_FIELDS = ['nascimento','ultimo_pedido','data_cadastro','primeira_compra','cashback_expira_em'];
+    const DATE_FIELDS = ['nascimento','ultima_compra','ultimo_pedido','data_cadastro','primeira_compra','cashback_expira_em'];
 
     let pendingGroupRemoveBtn = null;
     let lastPreviewData = null;
@@ -66,10 +66,10 @@
 
     const UI_FIELD_ORDER = {
         cliente: ['nome', 'cpf', 'sexo', 'telefone', 'email', 'nascimento', 'idade', 'funcionario', 'data_cadastro'],
-        compras: ['qtd_pedidos', 'ultimo_pedido', 'primeira_compra', 'valor_total_comprado', 'carrinho_abandonado', 'produto_comprado'],
+        compras: ['qtd_pedidos', 'ultima_compra', 'primeira_compra', 'valor_total_comprado', 'status_pedido', 'canal_pedido', 'forma_pagamento', 'carrinho_abandonado', 'produto_comprado'],
         financeiro: ['cashback', 'pontos_totais', 'cashback_expira_em'],
         localizacao: ['municipio', 'estado', 'bairro'],
-        marketing: ['newsletter', 'origem', 'notificacao_recente', 'busca_geral'],
+        marketing: ['newsletter', 'origem_contato', 'notificacao_recente', 'busca_geral'],
     };
 
     const ACTION_ICON_UP = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
@@ -81,8 +81,8 @@
     function uiCategoria(campo) {
         const chave = campo?.chave || '';
         if (['bairro', 'municipio', 'estado'].includes(chave)) return 'localizacao';
-        if (['newsletter', 'busca_geral', 'origem', 'notificacao_recente'].includes(chave)) return 'marketing';
-        if (['qtd_pedidos', 'ultimo_pedido', 'primeira_compra', 'valor_total_comprado', 'carrinho_abandonado', 'produto_comprado'].includes(chave)) return 'compras';
+        if (['newsletter', 'busca_geral', 'origem_contato', 'origem', 'notificacao_recente'].includes(chave)) return 'marketing';
+        if (['qtd_pedidos', 'ultima_compra', 'ultimo_pedido', 'primeira_compra', 'valor_total_comprado', 'status_pedido', 'canal_pedido', 'forma_pagamento', 'carrinho_abandonado', 'produto_comprado'].includes(chave)) return 'compras';
         if (['cashback', 'cashback_expira_em', 'pontos_totais'].includes(chave)) return 'financeiro';
         return 'cliente';
     }
@@ -280,8 +280,10 @@
     }
 
     function getWidgetType(chave, tipo) {
-        if (chave === 'sexo') return 'sexo';
-        if (chave === 'estado') return 'estado';
+        const campo = campoByChave(chave);
+        if (tipo === 'select' || (campo?.opcoes || []).length) return 'select';
+        if (chave === 'sexo') return 'select';
+        if (chave === 'estado') return 'select';
         if (chave === 'municipio') return 'autocomplete';
         if (chave === 'bairro') return 'autocomplete';
         if (tipo === 'boolean' || chave === 'newsletter' || chave === 'funcionario') return 'boolean';
@@ -300,11 +302,14 @@
             return `<input class="form-control value" type="text" placeholder="Não precisa" disabled>`;
         }
 
-        if (widget === 'sexo') {
+        if (widget === 'select') {
+            const opcoes = campo?.opcoes || [];
+            const opts = opcoes.map(opcao => {
+                const selected = String(value ?? '') === String(opcao) ? ' selected' : '';
+                return `<option value="${escapeHtml(opcao)}"${selected}>${escapeHtml(opcao)}</option>`;
+            }).join('');
             return `<select class="form-control value"${disabled}>
-                <option value="">Selecione...</option>
-                <option value="Feminino"${val === 'Feminino' ? ' selected' : ''}>Feminino</option>
-                <option value="Masculino"${val === 'Masculino' ? ' selected' : ''}>Masculino</option>
+                <option value="">Selecione...</option>${opts}
             </select>`;
         }
 

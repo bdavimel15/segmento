@@ -12,10 +12,11 @@ class SegmentoClienteCampo extends Model
 
     protected $fillable = [
         'chave','label','descricao','categoria','tipo_valor','origem_tabela','origem_coluna',
-        'expressao_sql','operadores_json','ativo','ordem'
+        'expressao_sql','operadores_json','opcoes_json','ativo','ordem'
     ];
 
     protected $casts = [
         'operadores_json' => 'array',
+        'opcoes_json' => 'array',
     ];
 }
