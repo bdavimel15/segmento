@@ -9,189 +9,56 @@ class SegmentoClienteCampoSeeder extends Seeder
 {
     public function run(): void
     {
+        $opsTexto = ['equals', 'not_equals', 'contains', 'not_contains', 'starts_with', 'ends_with', 'is_empty', 'is_not_empty'];
+        $opsNumero = ['equals', 'not_equals', 'greater_than', 'greater_or_equal', 'less_than', 'less_or_equal', 'between'];
+        $opsData = ['today', 'yesterday', 'equals_date', 'before_date', 'after_date', 'between_dates', 'last_x_days', 'next_x_days', 'exactly_x_days_ago', 'more_than_x_days_ago', 'less_than_x_days_ago', 'month_equals', 'month_between', 'is_empty', 'is_not_empty'];
+        $opsBool = ['equals', 'not_equals', 'is_true', 'is_false'];
+        $opsProduto = ['contains', 'not_contains', 'exists', 'not_exists'];
+
         $campos = [
-            [
-                'chave' => 'nome_cliente',
-                'label' => 'Nome do cliente',
-                'descricao' => 'Nome cadastrado do cliente',
-                'categoria' => 'cliente',
-                'tipo_valor' => 'string',
-                'origem_tabela' => 'cliente',
-                'origem_coluna' => 'cli_nome',
-                'expressao_sql' => 'cliente.cli_nome',
-                'operadores_json' => json_encode(['contains', 'not_contains', 'starts_with', 'ends_with', 'is_empty', 'is_not_empty'], JSON_UNESCAPED_UNICODE),
-                'ativo' => 'S',
-                'ordem' => 10
-            ],
-            [
-                'chave' => 'telefone_cliente',
-                'label' => 'Telefone do cliente',
-                'descricao' => 'Telefone/celular do cliente',
-                'categoria' => 'cliente',
-                'tipo_valor' => 'string',
-                'origem_tabela' => 'cliente',
-                'origem_coluna' => 'cli_telefone',
-                'expressao_sql' => 'cliente.cli_telefone',
-                'operadores_json' => json_encode(['contains', 'not_contains', 'starts_with', 'ends_with', 'is_empty', 'is_not_empty'], JSON_UNESCAPED_UNICODE),
-                'ativo' => 'S',
-                'ordem' => 20
-            ],
-            [
-                'chave' => 'email_cliente',
-                'label' => 'E-mail do cliente',
-                'descricao' => 'E-mail cadastrado do cliente',
-                'categoria' => 'cliente',
-                'tipo_valor' => 'string',
-                'origem_tabela' => 'cliente',
-                'origem_coluna' => 'cli_email',
-                'expressao_sql' => 'cliente.cli_email',
-                'operadores_json' => json_encode(['contains', 'not_contains', 'starts_with', 'ends_with', 'is_empty', 'is_not_empty'], JSON_UNESCAPED_UNICODE),
-                'ativo' => 'S',
-                'ordem' => 30
-            ],
-            [
-                'chave' => 'data_cadastro',
-                'label' => 'Data de cadastro',
-                'descricao' => 'Data em que o cliente foi cadastrado',
-                'categoria' => 'cliente',
-                'tipo_valor' => 'datetime',
-                'origem_tabela' => 'cliente',
-                'origem_coluna' => 'cadastrado',
-                'expressao_sql' => 'cliente.cadastrado',
-                'operadores_json' => json_encode(['today', 'equals_date', 'before_date', 'after_date', 'between_dates', 'last_x_days', 'more_than_x_days_ago', 'less_than_x_days_ago'], JSON_UNESCAPED_UNICODE),
-                'ativo' => 'S',
-                'ordem' => 40
-            ],
-            [
-                'chave' => 'aniversario',
-                'label' => 'Aniversário',
-                'descricao' => 'Aniversário calculado pelo mês e dia do nascimento',
-                'categoria' => 'cliente',
-                'tipo_valor' => 'date',
-                'origem_tabela' => 'cliente',
-                'origem_coluna' => 'cli_data_nascimento',
-                'expressao_sql' => 'view_cliente_contato.con_data_aniversario',
-                'operadores_json' => json_encode(['today', 'equals_date', 'next_x_days', 'between_dates'], JSON_UNESCAPED_UNICODE),
-                'ativo' => 'S',
-                'ordem' => 50
-            ],
-            [
-                'chave' => 'qtd_pedidos',
-                'label' => 'Quantidade de pedidos',
-                'descricao' => 'Quantidade total de pedidos gravada no cliente',
-                'categoria' => 'pedido',
-                'tipo_valor' => 'number',
-                'origem_tabela' => 'cliente',
-                'origem_coluna' => 'cli_qtd_pedidos',
-                'expressao_sql' => 'cliente.cli_qtd_pedidos',
-                'operadores_json' => json_encode(['equals', 'not_equals', 'greater_than', 'greater_or_equal', 'less_than', 'less_or_equal', 'between'], JSON_UNESCAPED_UNICODE),
-                'ativo' => 'S',
-                'ordem' => 60
-            ],
-            [
-                'chave' => 'qtd_pedidos_confirmados',
-                'label' => 'Quantidade de pedidos confirmados',
-                'descricao' => 'Quantidade de pedidos confirmados, considerando status.sta_confirmado = S e pedido.excluido IS NULL',
-                'categoria' => 'pedido',
-                'tipo_valor' => 'number',
-                'origem_tabela' => 'pedido',
-                'origem_coluna' => 'pedido_id',
-                'expressao_sql' => '(SELECT COUNT(*) FROM pedido p INNER JOIN status s ON s.status_id = p.status_id WHERE p.cliente_id = cliente.cliente_id AND p.excluido IS NULL AND s.sta_confirmado = \'S\')',
-                'operadores_json' => json_encode(['equals', 'not_equals', 'greater_than', 'greater_or_equal', 'less_than', 'less_or_equal', 'between'], JSON_UNESCAPED_UNICODE),
-                'ativo' => 'S',
-                'ordem' => 70
-            ],
-            [
-                'chave' => 'ultima_compra',
-                'label' => 'Última compra',
-                'descricao' => 'Data da última compra confirmada do cliente',
-                'categoria' => 'pedido',
-                'tipo_valor' => 'datetime',
-                'origem_tabela' => 'pedido',
-                'origem_coluna' => 'ped_data',
-                'expressao_sql' => '(SELECT MAX(p.ped_data) FROM pedido p INNER JOIN status s ON s.status_id = p.status_id WHERE p.cliente_id = cliente.cliente_id AND p.excluido IS NULL AND s.sta_confirmado = \'S\')',
-                'operadores_json' => json_encode(['equals_date', 'before_date', 'after_date', 'between_dates', 'last_x_days', 'exactly_x_days_ago', 'more_than_x_days_ago', 'less_than_x_days_ago', 'is_empty', 'is_not_empty'], JSON_UNESCAPED_UNICODE),
-                'ativo' => 'S',
-                'ordem' => 80
-            ],
-            [
-                'chave' => 'primeira_compra',
-                'label' => 'Primeira compra',
-                'descricao' => 'Data da primeira compra confirmada do cliente',
-                'categoria' => 'pedido',
-                'tipo_valor' => 'datetime',
-                'origem_tabela' => 'pedido',
-                'origem_coluna' => 'ped_data',
-                'expressao_sql' => '(SELECT MIN(p.ped_data) FROM pedido p INNER JOIN status s ON s.status_id = p.status_id WHERE p.cliente_id = cliente.cliente_id AND p.excluido IS NULL AND s.sta_confirmado = \'S\')',
-                'operadores_json' => json_encode(['equals_date', 'before_date', 'after_date', 'between_dates', 'last_x_days', 'more_than_x_days_ago', 'less_than_x_days_ago', 'is_empty', 'is_not_empty'], JSON_UNESCAPED_UNICODE),
-                'ativo' => 'S',
-                'ordem' => 90
-            ],
-            [
-                'chave' => 'valor_total_compras',
-                'label' => 'Valor total comprado',
-                'descricao' => 'Soma dos valores de pedidos confirmados',
-                'categoria' => 'pedido',
-                'tipo_valor' => 'money',
-                'origem_tabela' => 'pedido',
-                'origem_coluna' => 'ped_valor_total',
-                'expressao_sql' => '(SELECT COALESCE(SUM(p.ped_valor_total),0) FROM pedido p INNER JOIN status s ON s.status_id = p.status_id WHERE p.cliente_id = cliente.cliente_id AND p.excluido IS NULL AND s.sta_confirmado = \'S\')',
-                'operadores_json' => json_encode(['equals', 'not_equals', 'greater_than', 'greater_or_equal', 'less_than', 'less_or_equal', 'between'], JSON_UNESCAPED_UNICODE),
-                'ativo' => 'S',
-                'ordem' => 100
-            ],
-            [
-                'chave' => 'cashback_saldo',
-                'label' => 'Saldo de cashback',
-                'descricao' => 'Saldo total de cashback disponível do cliente',
-                'categoria' => 'cashback',
-                'tipo_valor' => 'money',
-                'origem_tabela' => 'cashback',
-                'origem_coluna' => 'cas_valor',
-                'expressao_sql' => '(SELECT COALESCE(SUM(cas_valor),0) FROM cashback cb WHERE cb.cliente_id = cliente.cliente_id AND cb.excluido IS NULL)',
-                'operadores_json' => json_encode(['equals', 'not_equals', 'greater_than', 'greater_or_equal', 'less_than', 'less_or_equal', 'between'], JSON_UNESCAPED_UNICODE),
-                'ativo' => 'S',
-                'ordem' => 110
-            ],
-            [
-                'chave' => 'proxima_compra',
-                'label' => 'Próxima compra prevista',
-                'descricao' => 'Data prevista para próxima compra do cliente',
-                'categoria' => 'cliente',
-                'tipo_valor' => 'datetime',
-                'origem_tabela' => 'cliente',
-                'origem_coluna' => 'cli_proxima_compra',
-                'expressao_sql' => 'cliente.cli_proxima_compra',
-                'operadores_json' => json_encode(['equals_date', 'before_date', 'after_date', 'between_dates', 'next_x_days', 'last_x_days', 'is_empty', 'is_not_empty'], JSON_UNESCAPED_UNICODE),
-                'ativo' => 'S',
-                'ordem' => 120
-            ],
-            [
-                'chave' => 'recebeu_notificacao_nos_ultimos_dias',
-                'label' => 'Recebeu notificação recentemente',
-                'descricao' => 'Verifica se o cliente recebeu notificação nos últimos X dias',
-                'categoria' => 'notificacao',
-                'tipo_valor' => 'number',
-                'origem_tabela' => 'notificacao_programada_envio',
-                'origem_coluna' => 'cadastrado',
-                'expressao_sql' => '(SELECT COUNT(*) FROM notificacao_programada_envio npe WHERE npe.cliente_id = cliente.cliente_id AND npe.excluido IS NULL AND npe.cadastrado >= DATE_SUB(NOW(), INTERVAL ? DAY))',
-                'operadores_json' => json_encode(['exists', 'not_exists'], JSON_UNESCAPED_UNICODE),
-                'ativo' => 'S',
-                'ordem' => 130
-            ],
-            [
-                'chave' => 'produto_comprado',
-                'label' => 'Produto comprado',
-                'descricao' => 'Verifica se o cliente comprou produto específico',
-                'categoria' => 'produto',
-                'tipo_valor' => 'number',
-                'origem_tabela' => 'pedido_item',
-                'origem_coluna' => 'produto_id',
-                'expressao_sql' => '(SELECT COUNT(*) FROM pedido_item pi INNER JOIN pedido p ON p.pedido_id = pi.pedido_id INNER JOIN status s ON s.status_id = p.status_id WHERE p.cliente_id = cliente.cliente_id AND pi.excluido IS NULL AND p.excluido IS NULL AND s.sta_confirmado = \'S\' AND pi.produto_id = ?)',
-                'operadores_json' => json_encode(['exists', 'not_exists'], JSON_UNESCAPED_UNICODE),
-                'ativo' => 'S',
-                'ordem' => 140
-            ]
+            $this->campo('nome', 'Nome do cliente', 'Nome cadastrado do cliente', 'cliente', 'string', 'cliente', 'cli_nome', 'c.cli_nome', $opsTexto, 10),
+            $this->campo('nome_cliente', 'Nome do cliente', 'Alias para nome do cliente', 'cliente', 'string', 'cliente', 'cli_nome', 'c.cli_nome', $opsTexto, 11),
+            $this->campo('cpf', 'CPF do cliente', 'CPF cadastrado do cliente', 'cliente', 'string', 'cliente', 'cli_cpf', 'c.cli_cpf', $opsTexto, 20),
+            $this->campo('telefone', 'Telefone do cliente', 'Telefone/celular do cliente', 'cliente', 'string', 'cliente', 'cli_telefone', 'c.cli_telefone', $opsTexto, 30),
+            $this->campo('telefone_cliente', 'Telefone do cliente', 'Alias para telefone do cliente', 'cliente', 'string', 'cliente', 'cli_telefone', 'c.cli_telefone', $opsTexto, 31),
+            $this->campo('email', 'E-mail do cliente', 'E-mail cadastrado do cliente', 'cliente', 'string', 'cliente', 'cli_email', 'c.cli_email', $opsTexto, 40),
+            $this->campo('email_cliente', 'E-mail do cliente', 'Alias para e-mail do cliente', 'cliente', 'string', 'cliente', 'cli_email', 'c.cli_email', $opsTexto, 41),
+
+            $this->campo('sexo', 'Sexo', 'Sexo cadastrado do cliente', 'cliente', 'select', 'cliente', 'sexo_id', 'c.sexo_id', ['equals', 'not_equals', 'is_empty', 'is_not_empty'], 50),
+            $this->campo('nascimento', 'Data de nascimento', 'Data de nascimento do cliente', 'cliente', 'date', 'cliente', 'cli_data_nascimento', 'c.cli_data_nascimento', $opsData, 60),
+            $this->campo('aniversario', 'Aniversário', 'Aniversário calculado pelo mês e dia do nascimento', 'cliente', 'date', 'cliente', 'cli_data_nascimento', 'c.cli_data_nascimento', ['today', 'equals_date', 'next_x_days', 'between_dates', 'month_equals', 'month_between'], 61),
+            $this->campo('idade', 'Idade', 'Idade calculada pela data de nascimento', 'cliente', 'number', 'cliente', 'cli_data_nascimento', $this->idadeSql(), $opsNumero, 70),
+
+            $this->campo('bairro', 'Bairro', 'Bairro cadastrado do cliente', 'endereco', 'string', 'cliente', 'cli_bairro', 'c.cli_bairro', $opsTexto, 80),
+            $this->campo('municipio', 'Município', 'Cidade/município cadastrado do cliente', 'endereco', 'string', 'cliente', 'cli_cidade', 'c.cli_cidade', $opsTexto, 90),
+            $this->campo('cidade', 'Cidade', 'Alias para município/cidade do cliente', 'endereco', 'string', 'cliente', 'cli_cidade', 'c.cli_cidade', $opsTexto, 91),
+            $this->campo('estado', 'Estado (UF)', 'Estado/UF cadastrado do cliente', 'endereco', 'string', 'cliente', 'cli_estado', 'c.cli_estado', $opsTexto, 100),
+
+            $this->campo('funcionario', 'Funcionário(a)', 'Indica se o cliente é funcionário da empresa', 'cliente', 'boolean', 'cliente', 'cli_funcionario', 'c.cli_funcionario', $opsBool, 110),
+            $this->campo('newsletter', 'Newsletter', 'Indica se o cliente aceita receber comunicações', 'cliente', 'boolean', 'cliente', 'cli_newsletter', 'c.cli_newsletter', $opsBool, 120),
+
+            $this->campo('data_cadastro', 'Data de cadastro', 'Data em que o cliente foi cadastrado', 'cliente', 'datetime', 'cliente', 'cadastrado', 'c.cadastrado', $opsData, 130),
+            $this->campo('qtd_pedidos', 'Quantidade de pedidos', 'Quantidade total de pedidos confirmados', 'pedido', 'number', 'pedido', 'pedido_id', 'COALESCE(ps.qtd_pedidos, 0)', $opsNumero, 140),
+            $this->campo('qtd_pedidos_confirmados', 'Quantidade de pedidos confirmados', 'Alias para quantidade de pedidos confirmados', 'pedido', 'number', 'pedido', 'pedido_id', 'COALESCE(ps.qtd_pedidos, 0)', $opsNumero, 141),
+            $this->campo('ultimo_pedido', 'Última compra', 'Data da última compra confirmada', 'pedido', 'datetime', 'pedido', 'ped_data', 'ps.ultimo_pedido', $opsData, 150),
+            $this->campo('ultima_compra', 'Última compra', 'Alias para última compra confirmada', 'pedido', 'datetime', 'pedido', 'ped_data', 'ps.ultimo_pedido', $opsData, 151),
+            $this->campo('primeira_compra', 'Primeira compra', 'Data da primeira compra confirmada', 'pedido', 'datetime', 'pedido', 'ped_data', 'ps.primeira_compra', $opsData, 160),
+            $this->campo('valor_total_comprado', 'Valor total comprado', 'Soma dos valores de pedidos confirmados', 'pedido', 'money', 'pedido', 'ped_valor_total', 'COALESCE(ps.valor_total_comprado, 0)', $opsNumero, 170),
+            $this->campo('valor_total_compras', 'Valor total comprado', 'Alias para valor total comprado', 'pedido', 'money', 'pedido', 'ped_valor_total', 'COALESCE(ps.valor_total_comprado, 0)', $opsNumero, 171),
+
+            $this->campo('cashback', 'Saldo de cashback', 'Saldo total de cashback disponível do cliente', 'cashback', 'money', 'cashback', 'cas_valor', 'COALESCE(cb.cashback, 0)', $opsNumero, 180),
+            $this->campo('cashback_saldo', 'Saldo de cashback', 'Alias para saldo de cashback', 'cashback', 'money', 'cashback', 'cas_valor', 'COALESCE(cb.cashback, 0)', $opsNumero, 181),
+            $this->campo('cashback_expira_em', 'Cashback expira em', 'Data estimada de expiração do cashback', 'cashback', 'datetime', 'cashback', 'cadastrado', 'cb.cashback_expira_em', $opsData, 190),
+            $this->campo('pontos_totais', 'Pontos totais', 'Pontos acumulados do cliente', 'cliente', 'number', 'cliente', 'cli_pontos_totais', 'COALESCE(c.cli_pontos_totais, 0)', $opsNumero, 200),
+
+            $this->campo('carrinho_abandonado', 'Carrinho abandonado', 'Indica se o cliente possui carrinho abandonado', 'carrinho', 'boolean', 'cliente', 'cliente_id', 'NULL', ['is_true', 'is_false', 'exists', 'not_exists'], 210),
+            $this->campo('produto_comprado', 'Produto comprado', 'Produto comprado pelo cliente', 'produto', 'string', 'produto', 'pro_nome', 'prod.produtos_comprados', $opsProduto, 220),
+            $this->campo('produto_nome', 'Produto comprado', 'Alias para produto comprado', 'produto', 'string', 'produto', 'pro_nome', 'prod.produtos_comprados', $opsProduto, 221),
+            $this->campo('produto', 'Produto comprado', 'Alias curto para produto comprado', 'produto', 'string', 'produto', 'pro_nome', 'prod.produtos_comprados', $opsProduto, 222),
+
+            $this->campo('origem_contato', 'Origem do contato', 'Origem do contato/cliente', 'contato', 'string', 'cliente', 'cliente_origem_id', 'CAST(c.cliente_origem_id AS CHAR)', $opsTexto, 230),
+            $this->campo('recebeu_notificacao_nos_ultimos_dias', 'Recebeu notificação recentemente', 'Verifica se o cliente recebeu notificação recentemente', 'notificacao', 'number', 'notificacao_programada_envio', 'cadastrado', 'npe.cadastrado', ['exists', 'not_exists', 'last_x_days', 'less_than_x_days_ago'], 240),
+            $this->campo('busca_geral', 'Busca geral', 'Busca em nome, telefone, e-mail e CPF', 'sistema', 'string', 'cliente', null, "COALESCE(c.cli_nome, '') || ' ' || COALESCE(c.cli_telefone, '') || ' ' || COALESCE(c.cli_email, '') || ' ' || COALESCE(c.cli_cpf, '')", ['contains', 'not_contains', 'starts_with', 'ends_with'], 250),
         ];
 
         foreach ($campos as $campo) {
@@ -200,5 +67,37 @@ class SegmentoClienteCampoSeeder extends Seeder
                 $campo
             );
         }
+    }
+
+    private function campo(
+        string $chave,
+        string $label,
+        string $descricao,
+        string $categoria,
+        string $tipoValor,
+        ?string $origemTabela,
+        ?string $origemColuna,
+        ?string $expressaoSql,
+        array $operadores,
+        int $ordem
+    ): array {
+        return [
+            'chave' => $chave,
+            'label' => $label,
+            'descricao' => $descricao,
+            'categoria' => $categoria,
+            'tipo_valor' => $tipoValor,
+            'origem_tabela' => $origemTabela,
+            'origem_coluna' => $origemColuna,
+            'expressao_sql' => $expressaoSql,
+            'operadores_json' => json_encode($operadores, JSON_UNESCAPED_UNICODE),
+            'ativo' => 'S',
+            'ordem' => $ordem,
+        ];
+    }
+
+    private function idadeSql(): string
+    {
+        return "CAST((strftime('%Y', 'now') - strftime('%Y', c.cli_data_nascimento) - (strftime('%m-%d', 'now') < strftime('%m-%d', c.cli_data_nascimento))) AS INTEGER)";
     }
 }

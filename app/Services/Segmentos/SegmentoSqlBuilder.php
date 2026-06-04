@@ -84,17 +84,26 @@ class SegmentoSqlBuilder
 
     private function aplicarJoinNecessario(string $field, array &$joins): void
     {
-        if (in_array($field, ['qtd_pedidos', 'ultimo_pedido', 'primeira_compra', 'valor_total_comprado'], true)) {
+        if (in_array($field, ['qtd_pedidos', 'qtd_pedidos_confirmados', 'ultimo_pedido', 'ultima_compra', 'primeira_compra', 'valor_total_comprado', 'valor_total_compras'], true)) {
             $joins['pedido_stats'] = "LEFT JOIN (SELECT p.cliente_id, COUNT(*) qtd_pedidos, MAX(COALESCE(p.ped_data, p.cadastrado)) ultimo_pedido, MIN(COALESCE(p.ped_data, p.cadastrado)) primeira_compra, SUM(COALESCE(p.ped_valor_total, 0)) valor_total_comprado FROM pedido p INNER JOIN status s ON s.status_id = p.status_id WHERE p.excluido IS NULL AND s.sta_confirmado = 'S' GROUP BY p.cliente_id) ps ON ps.cliente_id = c.cliente_id";
         }
 
         if (in_array($field, ['produto_comprado', 'produto_nome', 'produto'], true)) {
             $this->aplicarJoinNecessario('qtd_pedidos', $joins);
-            $joins['produto_stats'] = "LEFT JOIN (SELECT p.cliente_id, GROUP_CONCAT(DISTINCT pr.pro_nome ORDER BY pr.pro_nome SEPARATOR ' ') produtos_comprados FROM pedido p INNER JOIN status s ON s.status_id = p.status_id INNER JOIN pedido_item pi ON pi.pedido_id = p.pedido_id AND pi.excluido IS NULL INNER JOIN produto pr ON pr.produto_id = pi.produto_id AND pr.excluido IS NULL WHERE p.excluido IS NULL AND s.sta_confirmado = 'S' GROUP BY p.cliente_id) prod ON prod.cliente_id = c.cliente_id";
+
+            $produtoAgg = $this->isSqlite()
+                ? "GROUP_CONCAT(DISTINCT pr.pro_nome) produtos_comprados"
+                : "GROUP_CONCAT(DISTINCT pr.pro_nome ORDER BY pr.pro_nome SEPARATOR ' ') produtos_comprados";
+
+            $joins['produto_stats'] = "LEFT JOIN (SELECT p.cliente_id, {$produtoAgg} FROM pedido p INNER JOIN status s ON s.status_id = p.status_id INNER JOIN pedido_item pi ON pi.pedido_id = p.pedido_id AND pi.excluido IS NULL INNER JOIN produto pr ON pr.produto_id = pi.produto_id AND pr.excluido IS NULL WHERE p.excluido IS NULL AND s.sta_confirmado = 'S' GROUP BY p.cliente_id) prod ON prod.cliente_id = c.cliente_id";
         }
 
-        if (in_array($field, ['cashback', 'cashback_expira_em'], true)) {
-            $joins['cashback'] = "LEFT JOIN (SELECT cliente_id, SUM(cas_valor) cashback, MAX(DATE_ADD(COALESCE(cadastrado, NOW()), INTERVAL 30 DAY)) cashback_expira_em FROM cashback WHERE excluido IS NULL GROUP BY cliente_id) cb ON cb.cliente_id = c.cliente_id";
+        if (in_array($field, ['cashback', 'cashback_saldo', 'cashback_expira_em'], true)) {
+            $expira = $this->isSqlite()
+                ? "MAX(datetime(COALESCE(cadastrado, CURRENT_TIMESTAMP), '+30 days'))"
+                : "MAX(DATE_ADD(COALESCE(cadastrado, NOW()), INTERVAL 30 DAY))";
+
+            $joins['cashback'] = "LEFT JOIN (SELECT cliente_id, SUM(cas_valor) cashback, {$expira} cashback_expira_em FROM cashback WHERE excluido IS NULL GROUP BY cliente_id) cb ON cb.cliente_id = c.cliente_id";
         }
 
         if ($field === 'carrinho_abandonado') {
@@ -114,7 +123,7 @@ class SegmentoSqlBuilder
 
         $field = $order['field'] ?? null;
 
-        if (in_array($field, ['qtd_pedidos', 'ultimo_pedido', 'primeira_compra', 'valor_total_comprado'], true)) {
+        if (in_array($field, ['qtd_pedidos', 'qtd_pedidos_confirmados', 'ultimo_pedido', 'ultima_compra', 'primeira_compra', 'valor_total_comprado', 'valor_total_compras'], true)) {
             $this->aplicarJoinNecessario((string)$field, $joins);
         }
 
@@ -179,20 +188,20 @@ class SegmentoSqlBuilder
             'ends_with' => ["{$expr} LIKE ?", ['%' . $value]],
             'is_empty' => ["({$expr} IS NULL OR {$expr} = '')", []],
             'is_not_empty' => ["({$expr} IS NOT NULL AND {$expr} <> '')", []],
-            'more_than_x_days_ago' => ["{$expr} < DATE_SUB(NOW(), INTERVAL ? DAY)", [(int)$value]],
-            'less_than_x_days_ago' => ["{$expr} >= DATE_SUB(NOW(), INTERVAL ? DAY)", [(int)$value]],
-            'last_x_days' => ["{$expr} >= DATE_SUB(NOW(), INTERVAL ? DAY)", [(int)$value]],
-            'next_x_days' => ["{$expr} BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL ? DAY)", [(int)$value]],
-            'exactly_x_days_ago' => ["DATE({$expr}) = DATE(DATE_SUB(NOW(), INTERVAL ? DAY))", [(int)$value]],
-            'yesterday' => ["DATE({$expr}) = DATE(DATE_SUB(CURDATE(), INTERVAL 1 DAY))", []],
+            'more_than_x_days_ago' => $this->isSqlite() ? ["datetime({$expr}) < datetime('now', '-' || ? || ' days')", [(int)$value]] : ["{$expr} < DATE_SUB(NOW(), INTERVAL ? DAY)", [(int)$value]],
+            'less_than_x_days_ago' => $this->isSqlite() ? ["datetime({$expr}) >= datetime('now', '-' || ? || ' days')", [(int)$value]] : ["{$expr} >= DATE_SUB(NOW(), INTERVAL ? DAY)", [(int)$value]],
+            'last_x_days' => $this->isSqlite() ? ["datetime({$expr}) >= datetime('now', '-' || ? || ' days')", [(int)$value]] : ["{$expr} >= DATE_SUB(NOW(), INTERVAL ? DAY)", [(int)$value]],
+            'next_x_days' => $this->isSqlite() ? ["datetime({$expr}) BETWEEN datetime('now') AND datetime('now', '+' || ? || ' days')", [(int)$value]] : ["{$expr} BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL ? DAY)", [(int)$value]],
+            'exactly_x_days_ago' => $this->isSqlite() ? ["date({$expr}) = date('now', '-' || ? || ' days')", [(int)$value]] : ["DATE({$expr}) = DATE(DATE_SUB(NOW(), INTERVAL ? DAY))", [(int)$value]],
+            'yesterday' => $this->isSqlite() ? ["date({$expr}) = date('now', '-1 day')", []] : ["DATE({$expr}) = DATE(DATE_SUB(CURDATE(), INTERVAL 1 DAY))", []],
             'before_date' => ["DATE({$expr}) < ?", [$value]],
             'after_date' => ["DATE({$expr}) > ?", [$value]],
             'equals_date' => ["DATE({$expr}) = ?", [$value]],
             'today' => $this->todaySql($expr),
             'month_equals' => $this->monthEqualsSql($expr, $value),
             'month_between' => $this->monthBetweenSql($expr, $value),
-            'is_true' => (str_contains($expr, 'cli_newsletter') || str_contains($expr, 'cli_funcionario')) ? ["{$expr} = 'SIM'", []] : ["{$expr} IS NOT NULL", []],
-            'is_false' => (str_contains($expr, 'cli_newsletter') || str_contains($expr, 'cli_funcionario')) ? ["{$expr} = 'NÃO'", []] : ["{$expr} IS NULL", []],
+            'is_true' => (str_contains($expr, 'cli_newsletter') || str_contains($expr, 'cli_funcionario')) ? ["UPPER(TRIM({$expr})) IN ('S','SIM','1','TRUE')", []] : ["{$expr} IS NOT NULL", []],
+            'is_false' => (str_contains($expr, 'cli_newsletter') || str_contains($expr, 'cli_funcionario')) ? ["UPPER(TRIM({$expr})) IN ('N','NAO','NÃO','0','FALSE')", []] : ["{$expr} IS NULL", []],
             'exists' => ["{$expr} IS NOT NULL", []],
             'not_exists' => ["{$expr} IS NULL", []],
             default => throw new RuntimeException("Operador SQL não implementado: {$op}"),
@@ -235,22 +244,35 @@ class SegmentoSqlBuilder
         };
     }
 
+    private function isSqlite(): bool
+    {
+        return strtolower((string) config('database.default')) === 'sqlite';
+    }
+
     private function todaySql(string $expr): array
     {
         if (str_contains($expr, 'cli_data_nascimento')) {
-            return ["MONTH({$expr}) = MONTH(CURDATE()) AND DAY({$expr}) = DAY(CURDATE())", []];
+            return $this->isSqlite()
+                ? ["strftime('%m-%d', {$expr}) = strftime('%m-%d', 'now')", []]
+                : ["MONTH({$expr}) = MONTH(CURDATE()) AND DAY({$expr}) = DAY(CURDATE())", []];
         }
 
-        return ["DATE({$expr}) = CURDATE()", []];
+        return $this->isSqlite()
+            ? ["date({$expr}) = date('now')", []]
+            : ["DATE({$expr}) = CURDATE()", []];
     }
 
     private function monthEqualsSql(string $expr, mixed $value): array
     {
         if ($value === 'current' || $value === 'atual') {
-            return ["MONTH({$expr}) = MONTH(CURDATE())", []];
+            return $this->isSqlite()
+                ? ["strftime('%m', {$expr}) = strftime('%m', 'now')", []]
+                : ["MONTH({$expr}) = MONTH(CURDATE())", []];
         }
 
-        return ["MONTH({$expr}) = ?", [(int)$value]];
+        return $this->isSqlite()
+            ? ["CAST(strftime('%m', {$expr}) AS INTEGER) = ?", [(int)$value]]
+            : ["MONTH({$expr}) = ?", [(int)$value]];
     }
 
     private function monthBetweenSql(string $expr, mixed $value): array
@@ -271,7 +293,7 @@ class SegmentoSqlBuilder
             [$start, $end] = [$end, $start];
         }
 
-        return ["MONTH({$expr}) BETWEEN ? AND ?", [$start, $end]];
+        return $this->isSqlite() ? ["CAST(strftime('%m', {$expr}) AS INTEGER) BETWEEN ? AND ?", [$start, $end]] : ["MONTH({$expr}) BETWEEN ? AND ?", [$start, $end]];
     }
 
     private function orderSql(array $order): string
@@ -289,7 +311,7 @@ class SegmentoSqlBuilder
             'ultimo_pedido_asc', 'ultima_compra_asc' => 'ORDER BY ps.ultimo_pedido ASC',
             'produto_comprado', 'produto_nome', 'produto' => "ORDER BY prod.produtos_comprados {$direction}",
             'data_cadastro' => "ORDER BY c.cadastrado {$direction}",
-            default => 'ORDER BY RAND()',
+            default => $this->isSqlite() ? 'ORDER BY RANDOM()' : 'ORDER BY RAND()',
         };
     }
 
