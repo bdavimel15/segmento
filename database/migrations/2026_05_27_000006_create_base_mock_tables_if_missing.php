@@ -158,7 +158,23 @@ return new class extends Migration
         $tableName = str_replace('`', '', $tableName);
         $indexName = str_replace('`', '', $indexName);
 
-        return count(DB::select("SHOW INDEX FROM `{$tableName}` WHERE Key_name = ?", [$indexName])) > 0;
+        try {
+            if (DB::getDriverName() === 'sqlite') {
+                $indexes = DB::select("PRAGMA index_list('" . str_replace("'", "''", $tableName) . "')");
+
+                foreach ($indexes as $index) {
+                    if (($index->name ?? '') === $indexName) {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+
+            return count(DB::select("SHOW INDEX FROM `{$tableName}` WHERE Key_name = ?", [$indexName])) > 0;
+        } catch (\Throwable $e) {
+            return false;
+        }
     }
 
     public function down(): void
