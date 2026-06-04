@@ -105,3 +105,6 @@ database/*.sqlite
 # Tinker
 
 .psysh_history
+
+
+*.zip
