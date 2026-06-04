@@ -39,6 +39,8 @@ class SegmentoRuleExplainer
         'exactly_x_days_ago' => 'exatamente X dias atrás',
         'more_than_x_days_ago' => 'há mais de X dias',
         'less_than_x_days_ago' => 'há menos de X dias',
+        'month_equals' => 'no mês',
+        'month_between' => 'entre os meses',
     ];
 
     public function __construct(?Collection $campos = null)
@@ -211,7 +213,7 @@ class SegmentoRuleExplainer
             return !$this->truthy($found);
         }
 
-        if (in_array($operator, ['today', 'yesterday', 'equals_date', 'before_date', 'after_date', 'last_x_days', 'next_x_days', 'exactly_x_days_ago', 'more_than_x_days_ago', 'less_than_x_days_ago'], true)) {
+        if (in_array($operator, ['today', 'yesterday', 'equals_date', 'before_date', 'after_date', 'last_x_days', 'next_x_days', 'exactly_x_days_ago', 'more_than_x_days_ago', 'less_than_x_days_ago', 'month_equals', 'month_between'], true)) {
             return $this->matchDate($field, $operator, $value, $found);
         }
 
@@ -220,7 +222,7 @@ class SegmentoRuleExplainer
             return $operator === 'equals' ? $match : !$match;
         }
 
-        if (in_array($field, ['nome', 'cpf', 'telefone', 'email', 'bairro', 'municipio'], true)) {
+        if (in_array($field, ['nome', 'cpf', 'telefone', 'email', 'bairro', 'municipio', 'estado', 'origem_contato', 'produto_comprado', 'produto_nome', 'produto'], true)) {
             return $this->matchText($operator, (string) $value, $found);
         }
 
@@ -339,8 +341,41 @@ class SegmentoRuleExplainer
             'exactly_x_days_ago' => $date->isSameDay($today->copy()->subDays((int) $value)),
             'more_than_x_days_ago' => $date->lt($today->copy()->subDays((int) $value)),
             'less_than_x_days_ago' => $date->gte($today->copy()->subDays((int) $value)),
+            'month_equals' => $this->matchMonthEquals($date, $value),
+            'month_between' => $this->matchMonthBetween($date, $value),
             default => false,
         };
+    }
+
+
+    private function matchMonthEquals(Carbon $date, mixed $value): bool
+    {
+        if ($value === 'current' || $value === 'atual') {
+            return $date->month === Carbon::today()->month;
+        }
+
+        return $date->month === (int) $value;
+    }
+
+    private function matchMonthBetween(Carbon $date, mixed $value): bool
+    {
+        if (is_array($value)) {
+            $start = (int)($value[0] ?? $value['start'] ?? $value['min'] ?? 1);
+            $end = (int)($value[1] ?? $value['end'] ?? $value['max'] ?? 12);
+        } else {
+            $parts = preg_split('/\s*,\s*|\s+e\s+|\s+a\s+|\s+até\s+/iu', (string) $value, -1, PREG_SPLIT_NO_EMPTY);
+            $start = (int)($parts[0] ?? 1);
+            $end = (int)($parts[1] ?? 12);
+        }
+
+        $start = max(1, min($start, 12));
+        $end = max(1, min($end, 12));
+
+        if ($start > $end) {
+            [$start, $end] = [$end, $start];
+        }
+
+        return $date->month >= $start && $date->month <= $end;
     }
 
     private function matchNormalized(string $field, string $value, mixed $found): bool
@@ -385,15 +420,16 @@ class SegmentoRuleExplainer
             'estado' => $row['cli_estado'] ?? null,
             'funcionario' => $this->normalizeBool($row['cli_funcionario'] ?? null),
             'newsletter' => $this->normalizeBool($row['cli_newsletter'] ?? null),
-            'qtd_pedidos' => $row['_seg_qtd_pedidos'] ?? $row['cli_qtd_pedidos'] ?? null,
-            'ultimo_pedido' => $row['_seg_ultimo_pedido'] ?? null,
+            'qtd_pedidos', 'qtd_pedidos_confirmados' => $row['_seg_qtd_pedidos'] ?? $row['_seg_qtd_pedidos_confirmados'] ?? $row['cli_qtd_pedidos'] ?? null,
+            'ultimo_pedido', 'ultima_compra' => $row['_seg_ultimo_pedido'] ?? $row['_seg_ultima_compra'] ?? null,
             'primeira_compra' => $row['_seg_primeira_compra'] ?? null,
-            'valor_total_comprado' => $row['_seg_valor_total_comprado'] ?? null,
-            'cashback' => $row['_seg_cashback'] ?? null,
+            'valor_total_comprado', 'valor_total_compras' => $row['_seg_valor_total_comprado'] ?? $row['_seg_valor_total_compras'] ?? null,
+            'cashback', 'cashback_saldo' => $row['_seg_cashback'] ?? $row['_seg_cashback_saldo'] ?? null,
             'pontos_totais' => $row['cli_pontos_totais'] ?? null,
             'data_cadastro' => $row['cadastrado'] ?? null,
             'cashback_expira_em' => $row['_seg_cashback_expira_em'] ?? null,
             'carrinho_abandonado' => $row['_seg_carrinho_abandonado'] ?? null,
+            'produto_comprado', 'produto_nome', 'produto' => $row['_seg_produto_comprado'] ?? $row['_seg_produto_nome'] ?? $row['_seg_produto'] ?? null,
             default => $row[$field] ?? null,
         };
     }
@@ -468,7 +504,7 @@ class SegmentoRuleExplainer
             return $this->normalizeBool($found) ?? (string) $found;
         }
 
-        if (in_array($field, ['nascimento', 'ultimo_pedido', 'primeira_compra', 'data_cadastro', 'cashback_expira_em'], true)) {
+        if (in_array($field, ['nascimento', 'ultimo_pedido', 'ultima_compra', 'primeira_compra', 'data_cadastro', 'cashback_expira_em'], true)) {
             try {
                 return Carbon::parse((string) $found)->format('d/m/Y');
             } catch (\Throwable) {

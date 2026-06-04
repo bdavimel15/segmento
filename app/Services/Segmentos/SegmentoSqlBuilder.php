@@ -65,18 +65,28 @@ class SegmentoSqlBuilder
         $select = ['c.*'];
 
         if (isset($joins['pedido_stats'])) {
-            $select[] = 'COALESCE(ps.qtd_pedidos, 0) AS cli_qtd_pedidos_calc';
-            $select[] = 'ps.ultimo_pedido AS cli_ultimo_pedido_calc';
-            $select[] = 'ps.primeira_compra AS cli_primeira_compra_calc';
-            $select[] = 'COALESCE(ps.valor_total_comprado, 0) AS cli_valor_total_comprado_calc';
+            // Aliases usados pelo painel de detalhes/explicação.
+            // Sem esses aliases, a SQL filtra corretamente, mas o drawer tenta validar
+            // campos calculados como null e mostra clientes aprovados como reprovados.
+            $select[] = 'COALESCE(ps.qtd_pedidos, 0) AS _seg_qtd_pedidos';
+            $select[] = 'COALESCE(ps.qtd_pedidos, 0) AS _seg_qtd_pedidos_confirmados';
+            $select[] = 'ps.ultimo_pedido AS _seg_ultimo_pedido';
+            $select[] = 'ps.ultimo_pedido AS _seg_ultima_compra';
+            $select[] = 'ps.primeira_compra AS _seg_primeira_compra';
+            $select[] = 'COALESCE(ps.valor_total_comprado, 0) AS _seg_valor_total_comprado';
+            $select[] = 'COALESCE(ps.valor_total_comprado, 0) AS _seg_valor_total_compras';
         }
 
         if (isset($joins['produto_stats'])) {
-            $select[] = 'prod.produtos_comprados AS cli_produtos_comprados_calc';
+            $select[] = 'prod.produtos_comprados AS _seg_produto_comprado';
+            $select[] = 'prod.produtos_comprados AS _seg_produto_nome';
+            $select[] = 'prod.produtos_comprados AS _seg_produto';
         }
 
         if (isset($joins['cashback'])) {
-            $select[] = 'COALESCE(cb.cashback, 0) AS cli_cashback_calc';
+            $select[] = 'COALESCE(cb.cashback, 0) AS _seg_cashback';
+            $select[] = 'COALESCE(cb.cashback, 0) AS _seg_cashback_saldo';
+            $select[] = 'cb.cashback_expira_em AS _seg_cashback_expira_em';
         }
 
         return implode(', ', $select);

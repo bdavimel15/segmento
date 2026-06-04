@@ -1,1 +1,0 @@
-Corrigido ranking de clientes com mais pedidos: top N agora usa ORDER BY COALESCE(ps.qtd_pedidos,0) DESC, aplica LIMIT N e adiciona join de pedidos mesmo quando o campo aparece apenas na ordenação.

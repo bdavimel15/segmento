@@ -28,7 +28,29 @@ class SegmentoPreviewService
             if ($regra !== null) {
                 $explainer = new SegmentoRuleExplainer();
                 $result['resumo'] = $explainer->resumoRegra($regra);
-                $result['explicacoes'] = $explainer->explainPreview($exemplos, $regra);
+
+                $explicacoesTodas = $explainer->explainPreview($exemplos, $regra);
+
+                // Segurança extra: a tabela de prévia nunca deve exibir cliente reprovado.
+                // A SQL já deve filtrar, mas este pós-filtro evita que erros de alias/campo
+                // mostrem mulheres em segmento de homens, ou clientes reprovados em grupos aprovados.
+                $exemplosAprovados = [];
+                $explicacoesAprovadas = [];
+
+                foreach ($exemplos as $index => $exemplo) {
+                    $explicacao = $explicacoesTodas[$index] ?? $explainer->explainClient($exemplo, $regra);
+
+                    if (($explicacao['approved'] ?? false) === true) {
+                        $exemplosAprovados[] = $exemplo;
+                        $explicacoesAprovadas[] = $explicacao;
+                    }
+                }
+
+                $result['exemplos'] = $exemplosAprovados;
+                $result['explicacoes'] = $explicacoesAprovadas;
+                $result['total'] = count($exemplosAprovados);
+                $result['aprovados'] = count($exemplosAprovados);
+                $result['reprovados_descartados'] = count($exemplos) - count($exemplosAprovados);
             }
 
             return $result;
