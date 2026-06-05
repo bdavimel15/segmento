@@ -1,6 +1,8 @@
 [variables]
 PHP_MEMORY_LIMIT = "512M"
 COMPOSER_ALLOW_SUPERUSER = "1"
+FORCE_HTTPS = "true"
+SESSION_SECURE_COOKIE = "true"
 
 [phases.setup]
 nixPkgs = [
