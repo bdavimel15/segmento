@@ -162,18 +162,18 @@
 
           <div class="presets-grid">
             @foreach($porCategoria[$catKey] as $preset)
-              <div class="preset-card" data-cat="{{ $catKey }}">
+              @php $foiUsado = in_array($preset->nome, $presetsUsados ?? [], true); @endphp
+              <div class="preset-card {{ $foiUsado ? 'is-used' : '' }}" data-cat="{{ $catKey }}">
                 <div class="preset-card-header">
                   <div class="preset-card-icon">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" d="{{ $iconeCard($catKey) }}"/>
                     </svg>
                   </div>
-
-                  @if(($preset->ativo ?? 'S') === 'S' || ($preset->ativo ?? true) === true || ($preset->ativo ?? null) === 1)
-                    <span class="badge badge-success" style="font-size:.7rem;"><span class="badge-dot"></span>Ativo</span>
+                  @if($foiUsado)
+                    <span class="badge badge-danger preset-used-badge"><span class="badge-dot"></span>Usado</span>
                   @else
-                    <span class="badge badge-neutral" style="font-size:.7rem;">Inativo</span>
+                    <span class="badge badge-success" style="font-size:.7rem;"><span class="badge-dot"></span>Disponível</span>
                   @endif
                 </div>
 
@@ -182,18 +182,16 @@
 
                 <div class="preset-card-footer">
                   <span class="badge badge-purple" style="font-size:.72rem;">{{ $catInfo['label'] }}</span>
-
-                  @if(($preset->ativo ?? 'S') === 'S' || ($preset->ativo ?? true) === true || ($preset->ativo ?? null) === 1)
-                    <form method="POST" action="{{ route('segmentos.presets.usar', $preset->segmento_cliente_preset_id ?? $preset->id) }}" style="display:inline;">
-                      @csrf
-                      <button type="submit" class="btn btn-primary btn-sm">
-                        Usar modelo
-                      </button>
-                    </form>
-                  @else
-                    <button class="btn btn-ghost btn-sm" disabled style="opacity:.5;cursor:not-allowed;">Indisponível</button>
-                  @endif
+                  <form method="POST" action="{{ route('segmentos.presets.usar', $preset->segmento_cliente_preset_id ?? $preset->id) }}" style="display:inline;">
+                    @csrf
+                    <button type="submit" class="btn btn-primary btn-sm" title="{{ $foiUsado ? 'Este modelo já foi usado antes' : '' }}">
+                      Usar modelo
+                    </button>
+                  </form>
                 </div>
+                @if($foiUsado)
+                  <p class="form-hint mt-8">Este modelo já foi usado antes.</p>
+                @endif
               </div>
             @endforeach
           </div>

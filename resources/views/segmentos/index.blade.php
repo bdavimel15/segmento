@@ -9,7 +9,7 @@
     <p>Gerencie todos os grupos de clientes criados por IA ou manualmente.</p>
   </div>
   <div class="btn-group">
-    <a href="{{ route('segmentos.presets') }}" class="btn btn-secondary">
+    <a href="{{ route('segmentos.modelos') }}" class="btn btn-secondary">
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
       Modelos prontos
     </a>
@@ -47,21 +47,10 @@
               @endif
             </td>
             <td>
-              @php
-                $statusMap = [
-                  'validada'  => ['badge-success', 'Validada'],
-                  'validado'  => ['badge-success', 'Validado'],
-                  'reprovada' => ['badge-danger',  'Reprovada'],
-                  'reprovado' => ['badge-danger',  'Reprovado'],
-                  'pendente_validacao'  => ['badge-warning', 'Aguardando validação'],
-                  'pendente'  => ['badge-warning', 'Pendente'],
-                  'rascunho'  => ['badge-neutral', 'Rascunho'],
-                ];
-                [$cls, $label] = $statusMap[$segmento->status_validacao] ?? ['badge-neutral', ucfirst($segmento->status_validacao ?? '—')];
-              @endphp
-              <span class="badge {{ $cls }}">
+              @php use App\Support\SegmentadorUi; @endphp
+              <span class="badge {{ SegmentadorUi::statusBadgeClass($segmento->status_validacao) }}">
                 <span class="badge-dot"></span>
-                {{ $label }}
+                {{ SegmentadorUi::statusLabel($segmento->status_validacao) }}
               </span>
             </td>
             <td>
@@ -89,11 +78,6 @@
               <div class="td-actions" style="justify-content:flex-end;">
                 <a href="{{ route('segmentos.show', $segmento->segmento_cliente_id ?? $segmento) }}" class="btn btn-secondary btn-sm">Abrir</a>
                 <a href="{{ route('segmentos.edit', $segmento->segmento_cliente_id ?? $segmento) }}" class="btn btn-ghost btn-sm">Editar</a>
-                <form method="POST" action="{{ route('segmentos.destroy', $segmento->segmento_cliente_id ?? $segmento) }}"
-                      onsubmit="return confirm('Excluir este segmento?')" style="display:inline;">
-                  @csrf @method('DELETE')
-                  <button type="submit" class="btn btn-danger btn-sm">Excluir</button>
-                </form>
               </div>
             </td>
           </tr>
@@ -116,7 +100,7 @@
         <p>Use a IA para descrever o público que quer atingir, ou monte as condições manualmente.</p>
         <div class="btn-group" style="justify-content:center;">
           <a href="{{ route('segmentos.create') }}" class="btn btn-primary">Criar com IA</a>
-          <a href="{{ route('segmentos.presets') }}" class="btn btn-secondary">Usar modelo pronto</a>
+          <a href="{{ route('segmentos.modelos') }}" class="btn btn-secondary">Usar modelo pronto</a>
         </div>
       </div>
     </div>

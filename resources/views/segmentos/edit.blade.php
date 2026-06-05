@@ -33,14 +33,10 @@
               <textarea name="descricao" id="descricao" class="form-control" rows="3">{{ old('descricao', $segmento->descricao) }}</textarea>
             </div>
             <div class="form-group">
-              <label class="form-label" for="status">Status</label>
-              <select name="status_validacao" id="status_validacao" class="form-control">
-                <option value="rascunho" {{ old('status_validacao', $segmento->status_validacao) === 'rascunho' ? 'selected' : '' }}>Rascunho</option>
-                <option value="pendente_validacao" {{ old('status_validacao', $segmento->status_validacao) === 'pendente_validacao' ? 'selected' : '' }}>Aguardando validação</option>
-                <option value="validada" {{ old('status_validacao', $segmento->status_validacao) === 'validada' ? 'selected' : '' }}>Validado</option>
-                <option value="reprovada" {{ old('status_validacao', $segmento->status_validacao) === 'reprovada' ? 'selected' : '' }}>Reprovado</option>
-              </select>
-              <span class="form-hint">Altere o status somente se souber o impacto no fluxo de validação.</span>
+              <label class="form-label">Status atual</label>
+              @php use App\Support\SegmentadorUi; @endphp
+              <p><span class="badge {{ SegmentadorUi::statusBadgeClass($segmento->status_validacao) }}">{{ SegmentadorUi::statusLabel($segmento->status_validacao) }}</span></p>
+              <span class="form-hint">A aprovação é feita pela equipe interna.</span>
             </div>
           </div>
         </div>

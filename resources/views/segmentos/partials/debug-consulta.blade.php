@@ -1,3 +1,4 @@
+@if($segmentadorDevMode ?? false)
 <div class="debug-panel">
   <div class="debug-panel-title">Como o sistema executou a consulta</div>
   <div class="debug-metrics">
@@ -23,3 +24,4 @@
     <pre class="pre">{{ $sqlData['sql'] ?? '--' }}</pre>
   </details>
 </div>
+@endif

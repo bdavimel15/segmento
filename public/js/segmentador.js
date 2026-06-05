@@ -763,21 +763,30 @@
     }
 
     function renderPreviewTable(preview, explicacoes) {
-        if (!preview?.ok || !explicacoes?.length) {
-            return `<div class="empty-state compact"><p>${preview?.ok ? 'Nenhum cliente encontrado com estas regras.' : escapeHtml(preview?.erro || 'Erro na prévia.')}</p></div>`;
+        const exemplos = preview?.exemplos || [];
+        const rows = (explicacoes && explicacoes.length) ? explicacoes : exemplos.map((row, i) => ({
+            nome: row.cli_nome || row.nome || ('Cliente #' + (row.cliente_id || i + 1)),
+            telefone: row.cli_telefone || row.telefone || '—',
+            email: row.cli_email || row.email || '—',
+        }));
+
+        if (!preview?.ok) {
+            return `<div class="empty-state compact"><p>${escapeHtml(preview?.erro || 'Erro na prévia.')}</p></div>`;
         }
-        let html = `<div class="table-wrapper"><table class="data-table preview-table"><thead><tr>
-            <th>Cliente</th><th>E-mail</th><th>Telefone</th><th>Por que entrou?</th><th></th>
-        </tr></thead><tbody>`;
-        explicacoes.forEach((exp, idx) => {
-            const motivos = (exp.motivos_resumo || []).map(m => `<span class="motivo-chip">✅ ${escapeHtml(m)}</span>`).join('');
-            html += `<tr class="preview-row" data-exp-index="${idx}">
-                <td><strong>${escapeHtml(exp.nome)}</strong></td>
-                <td class="td-muted">—</td>
-                <td class="td-muted">—</td>
-                <td><div class="motivos-cell">${motivos || '—'}</div></td>
-                <td><button type="button" class="btn btn-ghost btn-sm" onclick="Segmentador.openDrawer(${idx})">Detalhes</button></td>
-            </tr>`;
+
+        if (!rows.length) {
+            return `<div class="empty-state compact"><p>Nenhum cliente encontrado para esta regra.</p></div>`;
+        }
+
+        let html = `<div class="table-wrapper"><table class="data-table preview-table preview-table-simple"><thead><tr>
+            <th>Cliente</th><th>Telefone</th><th>E-mail</th></tr></thead><tbody>`;
+
+        rows.forEach((exp, idx) => {
+            const row = exemplos[idx] || exp._row || exp;
+            const nome = exp.nome || row.cli_nome || ('Cliente #' + (row.cliente_id || idx + 1));
+            const tel = exp.telefone || row.cli_telefone || '—';
+            const email = exp.email || row.cli_email || '—';
+            html += `<tr><td><strong>${escapeHtml(nome)}</strong></td><td>${escapeHtml(tel)}</td><td>${escapeHtml(email)}</td></tr>`;
         });
         html += '</tbody></table></div>';
         return html;
@@ -853,24 +862,61 @@
 
     function renderPreviewResults(data, origem) {
         lastPreviewData = data;
+        lastPreviewOrigem = origem;
         const resumoEl = document.getElementById('resumoCard');
         const previewEl = document.getElementById('previewTable');
         const debugEl = document.getElementById('debugPanel');
+        const nameEl = document.getElementById('previewSegmentName');
+        const badgeEl = document.getElementById('previewTotalBadge');
+
+        if (nameEl) {
+            nameEl.textContent = document.getElementById('nome')?.value || 'Novo segmento';
+        }
+        if (badgeEl) {
+            const total = data.preview?.total ?? data.total ?? 0;
+            badgeEl.textContent = total + ' cliente' + (total === 1 ? '' : 's');
+        }
         if (resumoEl) resumoEl.innerHTML = renderResumoCard(data.resumo, origem);
         if (previewEl) {
             const enriched = enrichExplicacoesWithRowData(data.preview?.explicacoes, data.preview?.exemplos);
             if (data.preview) data.preview.explicacoes = enriched;
             previewEl.innerHTML = renderPreviewTable(data.preview, enriched);
-            previewEl.querySelectorAll('.preview-row').forEach((tr, i) => {
-                const exp = enriched[i];
-                if (!exp) return;
-                const cells = tr.querySelectorAll('td');
-                if (cells[1]) cells[1].textContent = exp.email || '—';
-                if (cells[2]) cells[2].textContent = exp.telefone || '—';
-            });
         }
-        if (debugEl) debugEl.innerHTML = renderDebugPanel(data);
+        if (debugEl && cfg().devMode) debugEl.innerHTML = renderDebugPanel(data);
         updateLiveSummary();
+    }
+
+    let lastPreviewOrigem = 'ia';
+
+    function showPreviewStep() {
+        document.getElementById('stepCreatePanel')?.classList.add('is-hidden');
+        document.getElementById('stepPreviewPanel')?.classList.add('is-visible');
+        document.getElementById('stepPreviewPanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function backToEditStep() {
+        document.getElementById('stepCreatePanel')?.classList.remove('is-hidden');
+        document.getElementById('stepPreviewPanel')?.classList.remove('is-visible');
+        document.getElementById('step2')?.classList.remove('current');
+        document.getElementById('step1')?.classList.add('current');
+    }
+
+    async function refreshPreview() {
+        if (lastPreviewOrigem === 'manual') {
+            if (typeof gerarManual === 'function') await gerarManual();
+        } else if (typeof interpretar === 'function') {
+            await interpretar();
+        }
+    }
+
+    function insertFieldSuggestion(chave) {
+        const map = cfg().fieldSuggestions || {};
+        const sugestao = map[chave] || ('Clientes com ' + (chave || 'campo'));
+        const textarea = document.getElementById('texto');
+        if (!textarea) return;
+        const atual = textarea.value.trim();
+        textarea.value = atual ? (atual + '. ' + sugestao) : sugestao;
+        textarea.focus();
     }
 
     window.Segmentador = {
@@ -878,6 +924,7 @@
         refreshOps, refreshValueHint, refreshGroupConnectors, refreshGroupSeparators,
         coletarManual, validateManual, confirmRemoveGroup, cancelRemoveGroup, executeRemoveGroup,
         duplicateGroup, renumberGroups, openDrawer, closeDrawer, renderPreviewResults,
+        showPreviewStep, backToEditStep, refreshPreview, insertFieldSuggestion,
         showValidationError, renderResumoCard, updateLiveSummary, buildCompactHeadline
     };
 })(window);

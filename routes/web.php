@@ -1,22 +1,12 @@
 <?php
 
+use App\Http\Controllers\Admin\SegmentadorAdminController;
 use App\Http\Controllers\SegmentoClienteController;
 use App\Http\Controllers\ClienteController;
-use App\Models\Cliente;
-use App\Models\SegmentoCliente;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    $totalClientes = Cliente::whereNull('excluido')->count();
-    $totalSegmentos = SegmentoCliente::whereNull('excluido')->count();
-    $segmentosValidados = SegmentoCliente::whereNull('excluido')->where('status_validacao', 'validada')->count();
-    $clientesEmPrevias = (int) SegmentoCliente::whereNull('excluido')->sum('ultima_previa_qtd');
-    $segmentosRecentes = SegmentoCliente::whereNull('excluido')->orderByDesc('segmento_cliente_id')->limit(8)->get();
-
-    return view('dashboard', compact('totalClientes', 'totalSegmentos', 'segmentosValidados', 'clientesEmPrevias', 'segmentosRecentes'));
-})->name('dashboard');
-
-Route::get('/dashboard', fn () => redirect()->route('dashboard'))->name('dashboard.redirect');
+Route::redirect('/', '/segmentos/criar');
+Route::redirect('/dashboard', '/segmentos/criar')->name('dashboard.redirect');
 
 Route::get('/segmentos', [SegmentoClienteController::class, 'index'])->name('segmentos.index');
 Route::get('/segmentos/criar', [SegmentoClienteController::class, 'create'])->name('segmentos.create');
@@ -26,9 +16,11 @@ Route::get('/segmentos/campo-opcoes', [SegmentoClienteController::class, 'campoO
 Route::post('/segmentos/preview', [SegmentoClienteController::class, 'preview'])->name('segmentos.preview');
 Route::post('/segmentos', [SegmentoClienteController::class, 'store'])->name('segmentos.store');
 
-Route::get('/segmentos/presets', [SegmentoClienteController::class, 'presets'])->name('segmentos.presets');
+Route::get('/segmentos/modelos', [SegmentoClienteController::class, 'presets'])->name('segmentos.modelos');
+Route::redirect('/segmentos/presets', '/segmentos/modelos')->name('segmentos.presets');
 Route::post('/segmentos/presets/{id}/usar', [SegmentoClienteController::class, 'usarPreset'])->name('segmentos.presets.usar');
 
+Route::get('/segmentos/{id}/tecnico', [SegmentoClienteController::class, 'tecnico'])->name('segmentos.tecnico');
 Route::get('/segmentos/{id}', [SegmentoClienteController::class, 'show'])->name('segmentos.show');
 Route::get('/segmentos/{id}/editar', [SegmentoClienteController::class, 'edit'])->name('segmentos.edit');
 Route::put('/segmentos/{id}', [SegmentoClienteController::class, 'update'])->name('segmentos.update');
@@ -38,12 +30,21 @@ Route::post('/segmentos/{id}/validar', [SegmentoClienteController::class, 'valid
 Route::post('/segmentos/{id}/reprovar', [SegmentoClienteController::class, 'reprovar'])->name('segmentos.reprovar');
 Route::get('/segmentos/{id}/exportar', [SegmentoClienteController::class, 'exportar'])->name('segmentos.exportar');
 
-Route::get('/clientes', [ClienteController::class, 'index'])->name('clientes.index');
-Route::get('/clientes/criar', [ClienteController::class, 'create'])->name('clientes.create');
+Route::redirect('/clientes', '/segmentos/criar');
 Route::get('/clientes/importar', [ClienteController::class, 'importForm'])->name('clientes.importForm');
 Route::post('/clientes/importar', [ClienteController::class, 'import'])->name('clientes.import');
-Route::post('/clientes', [ClienteController::class, 'store'])->name('clientes.store');
-Route::get('/clientes/exportar-csv', [ClienteController::class, 'exportCsv'])->name('clientes.exportCsv');
-Route::get('/clientes/{id}/editar', [ClienteController::class, 'edit'])->name('clientes.edit');
-Route::put('/clientes/{id}', [ClienteController::class, 'update'])->name('clientes.update');
-Route::delete('/clientes/{id}', [ClienteController::class, 'destroy'])->name('clientes.destroy');
+
+Route::get('/admin/login', [SegmentadorAdminController::class, 'loginForm'])->name('admin.login');
+Route::post('/admin/login', [SegmentadorAdminController::class, 'login'])->name('admin.login.submit');
+Route::post('/admin/logout', [SegmentadorAdminController::class, 'logout'])->name('admin.logout');
+
+Route::middleware('segmentador.admin')->prefix('admin')->name('admin.')->group(function () {
+    Route::get('/', [SegmentadorAdminController::class, 'index'])->name('index');
+    Route::get('/segmentos/{id}', [SegmentadorAdminController::class, 'show'])->name('show');
+    Route::post('/segmentos/{id}/aprovar', [SegmentadorAdminController::class, 'aprovar'])->name('aprovar');
+    Route::post('/segmentos/{id}/reprovar', [SegmentadorAdminController::class, 'reprovar'])->name('reprovar');
+    Route::post('/segmentos/{id}/analise', [SegmentadorAdminController::class, 'emAnalise'])->name('analise');
+    Route::delete('/segmentos/{id}', [SegmentadorAdminController::class, 'destroy'])->name('destroy');
+    Route::get('/clientes', [SegmentadorAdminController::class, 'clientes'])->name('clientes');
+    Route::get('/logs', [SegmentadorAdminController::class, 'logs'])->name('logs');
+});

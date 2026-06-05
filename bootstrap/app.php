@@ -14,6 +14,9 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // Railway e outros load balancers enviam X-Forwarded-Proto
         $middleware->trustProxies(at: '*');
+        $middleware->alias([
+            'segmentador.admin' => \App\Http\Middleware\SegmentadorAdminMiddleware::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(function (Request $request) {

@@ -19,6 +19,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use App\Support\SegmentadorUi;
 use Throwable;
 
 class SegmentoClienteController extends Controller
@@ -68,7 +69,14 @@ class SegmentoClienteController extends Controller
             ->get()
             ->groupBy(fn ($preset) => $preset->categoria ?: 'Geral');
 
-        return view('segmentos.presets', compact('presets'));
+        $presetsUsados = SegmentoCliente::whereNull('excluido')
+            ->where('origem', 'preset')
+            ->pluck('nome')
+            ->unique()
+            ->values()
+            ->all();
+
+        return view('segmentos.presets', compact('presets', 'presetsUsados'));
     }
 
     public function usarPreset(int $id, SegmentoRuleValidator $validator, SegmentoQueryExecutor $executor, SegmentoPreviewService $preview)
@@ -82,6 +90,7 @@ class SegmentoClienteController extends Controller
             }
 
             $regra['origem'] = 'preset';
+            $regra['preset_id'] = $preset->segmento_cliente_preset_id;
             $regra['resumo_humano'] = $regra['resumo_humano'] ?? ('Modelo pronto: ' . $preset->nome);
             $regra = SegmentoRuleHelper::enrichRule($regra);
 
@@ -96,12 +105,11 @@ class SegmentoClienteController extends Controller
                 'origem' => 'preset',
                 'regra_json' => $regra,
                 'resumo_humano' => $regra['resumo_humano'] ?? null,
-                'status_validacao' => 'validada',
+                'status_validacao' => 'pendente_validacao',
                 'limite' => $regra['limit'] ?? 25,
                 'ordenacao' => $this->mapOrdenacao($regra['order']['field'] ?? 'random'),
                 'ultima_previa_qtd' => $previewData['total'] ?? 0,
                 'ultima_previa_em' => now(),
-                'validado_em' => now(),
             ]);
 
             SegmentoClienteExecucao::create([
@@ -118,14 +126,14 @@ class SegmentoClienteController extends Controller
             SegmentoClienteValidacao::create([
                 'segmento_cliente_id' => $segmento->segmento_cliente_id,
                 'status_anterior' => null,
-                'status_novo' => 'validada',
+                'status_novo' => 'pendente_validacao',
                 'regra_json_snapshot' => $regra,
                 'resumo_humano_snapshot' => $segmento->resumo_humano,
-                'observacao' => 'Criado a partir de modelo pronto e validado automaticamente.',
+                'observacao' => 'Criado a partir de modelo pronto — aguardando aprovação interna.',
             ]);
 
             return redirect()->route('segmentos.show', $segmento->segmento_cliente_id)
-                ->with('ok', 'Modelo aplicado e segmento criado com sucesso.');
+                ->with('ok', 'Modelo aplicado! Segmento criado e aguardando aprovação da equipe.');
         } catch (Throwable $e) {
             return redirect()->route('segmentos.presets')->with('erro', $e->getMessage());
         }
@@ -158,6 +166,41 @@ class SegmentoClienteController extends Controller
         $resumoRegra = $previewData['resumo'] ?? (new SegmentoRuleExplainer())->resumoRegra($segmento->regra_json ?? []);
 
         return view('segmentos.show', compact('segmento', 'execucoes', 'validacoes', 'sqlData', 'previewData', 'resumoRegra'));
+    }
+
+    public function tecnico(int $id, SegmentoQueryExecutor $executor, SegmentoPreviewService $preview)
+    {
+        if (! SegmentadorUi::devMode() && ! SegmentadorUi::isAdmin()) {
+            abort(404);
+        }
+
+        $segmento = SegmentoCliente::findOrFail($id);
+        $execucoes = SegmentoClienteExecucao::where('segmento_cliente_id', $id)
+            ->orderByDesc('segmento_cliente_execucao_id')
+            ->limit(20)
+            ->get();
+        $validacoes = SegmentoClienteValidacao::where('segmento_cliente_id', $id)
+            ->orderByDesc('segmento_cliente_validacao_id')
+            ->limit(20)
+            ->get();
+
+        $sqlData = ['sql' => null, 'bindings' => [], 'motor' => null];
+        $previewData = ['ok' => false, 'total' => 0, 'exemplos' => []];
+        $logs = [];
+
+        try {
+            $regra = $segmento->regra_json ?? [];
+            $exec = $executor->executar($regra);
+            $sqlData = ['sql' => $exec['sql'], 'bindings' => $exec['bindings'], 'motor' => $exec['motor']];
+            $previewData = $preview->previewFromRows($exec['rows'], $regra, $exec['motor']);
+            $logs = $exec['logs'] ?? [];
+        } catch (Throwable $e) {
+            $previewData = ['ok' => false, 'total' => 0, 'exemplos' => [], 'explicacoes' => [], 'erro' => $e->getMessage()];
+        }
+
+        $resumoRegra = $previewData['resumo'] ?? (new SegmentoRuleExplainer())->resumoRegra($segmento->regra_json ?? []);
+
+        return view('segmentos.tecnico', compact('segmento', 'execucoes', 'validacoes', 'sqlData', 'previewData', 'resumoRegra', 'logs'));
     }
 
     public function interpretar(Request $request, AiSegmentoInterpreter $ai, SegmentoRuleValidator $validator, SegmentoQueryExecutor $executor, SegmentoPreviewService $preview)
@@ -315,7 +358,7 @@ class SegmentoClienteController extends Controller
                 'origem' => in_array($origem, ['ia','preset'], true) ? $origem : 'manual',
                 'regra_json' => $regra,
                 'resumo_humano' => $regra['resumo_humano'] ?? null,
-                'status_validacao' => $origem === 'ia' ? 'pendente_validacao' : 'validada',
+                'status_validacao' => 'pendente_validacao',
                 'limite' => $regra['limit'] ?? 25,
                 'ordenacao' => $this->mapOrdenacao($regra['order']['field'] ?? 'random'),
                 'ultima_previa_qtd' => $previewData['total'] ?? 0,
@@ -343,9 +386,7 @@ class SegmentoClienteController extends Controller
             ]);
 
             return redirect()->route('segmentos.show', $segmento->segmento_cliente_id)
-                ->with('ok', $origem === 'ia'
-                    ? 'Segmento criado! Revise a prévia e clique em Validar para liberar exportações.'
-                    : 'Segmento criado e validado! Você já pode exportar ou simular mensagens.');
+                ->with('ok', 'Segmento salvo! Status: Pendente — aguardando aprovação da equipe.');
         } catch (Throwable $e) {
             return back()->withInput()->with('erro', $e->getMessage());
         }
@@ -385,7 +426,6 @@ class SegmentoClienteController extends Controller
                 'ordenacao' => $this->mapOrdenacao($regra['order']['field'] ?? 'random'),
                 'ultima_previa_qtd' => $previewData['total'] ?? 0,
                 'ultima_previa_em' => now(),
-                'status_validacao' => $request->input('status_validacao', $segmento->status_validacao),
             ]);
 
             SegmentoClienteExecucao::create([
@@ -424,8 +464,8 @@ class SegmentoClienteController extends Controller
     {
         $segmento = SegmentoCliente::findOrFail($id);
 
-        if ($segmento->status_validacao !== 'validada') {
-            return redirect()->route('segmentos.show', $id)->with('erro', 'Valide o segmento antes de exportar.');
+        if (! SegmentadorUi::canExportSegment($segmento->status_validacao)) {
+            return redirect()->route('segmentos.show', $id)->with('erro', 'Exportação indisponível para este status. Aguarde aprovação ou corrija o segmento.');
         }
 
         $tipo = (string) $request->query('tipo', 'csv');
