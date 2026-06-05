@@ -224,7 +224,7 @@
 @include('segmentos.partials.drawer-modal')
 
 @push('scripts')
-<script src="{{ static_asset('js/segmentador.js') }}"></script>
+<script src="{{ asset('js/segmentador.js') }}?v={{ file_exists(public_path('js/segmentador.js')) ? filemtime(public_path('js/segmentador.js')) : time() }}"></script>
 <script>
 window.lastPreviewData = { preview: @json($previewData ?? []) };
 document.querySelectorAll('.btn-explicacao-detalhe').forEach(btn => {

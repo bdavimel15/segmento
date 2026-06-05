@@ -278,7 +278,7 @@ window.SEGMENTADOR = {
     }
 })();
 </script>
-<script src="{{ static_asset('js/segmentador.js') }}"></script>
+<script src="{{ asset('js/segmentador.js') }}?v={{ file_exists(public_path('js/segmentador.js')) ? filemtime(public_path('js/segmentador.js')) : time() }}"></script>
 <script>
 function setModo(novo) {
     document.getElementById('tabIa').classList.toggle('active', novo === 'ia');
