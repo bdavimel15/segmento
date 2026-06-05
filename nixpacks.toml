@@ -1,34 +1,26 @@
 [variables]
 PHP_MEMORY_LIMIT = "512M"
-COMPOSER_ALLOW_SUPERUSER = "1"
-FORCE_HTTPS = "true"
-SESSION_SECURE_COOKIE = "true"
-APP_ENV = "production"
-APP_DEBUG = "false"
 
 [phases.setup]
 nixPkgs = [
   "php84",
-  "php84Packages.composer",
-  "nodejs_22"
+  "php84Packages.composer"
 ]
 
 [phases.install]
 cmds = [
-  "composer install --no-dev --optimize-autoloader --no-interaction",
-  "npm install"
+  "composer install --no-dev --optimize-autoloader --no-interaction"
 ]
 
 [phases.build]
 cmds = [
-  "npm run build || true",
-  "mkdir -p database storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs bootstrap/cache",
-  "touch database/database.sqlite",
-  "chmod -R 775 database storage bootstrap/cache || true",
+  "mkdir -p storage/framework/cache/data",
+  "mkdir -p storage/framework/sessions",
+  "mkdir -p storage/framework/views",
+  "mkdir -p storage/logs",
+  "chmod -R 775 storage bootstrap/cache || true",
   "php artisan config:clear || true",
   "php artisan route:clear || true",
   "php artisan view:clear || true",
-  "php artisan cache:clear || true",
-  "php artisan migrate --force",
-  "php artisan db:seed --force || true"
+  "php artisan cache:clear || true"
 ]
