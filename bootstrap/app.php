@@ -16,7 +16,17 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->trustProxies(at: '*');
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        $exceptions->shouldRenderJsonWhen(
-            fn (Request $request) => $request->is('api/*'),
-        );
+        $exceptions->shouldRenderJsonWhen(function (Request $request) {
+            if ($request->is('api/*')) {
+                return true;
+            }
+
+            if ($request->is('segmentos/interpretar', 'segmentos/manual', 'segmentos/preview')) {
+                return true;
+            }
+
+            return $request->expectsJson()
+                || $request->ajax()
+                || $request->header('Content-Type') === 'application/json';
+        });
     })->create();

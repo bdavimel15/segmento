@@ -318,7 +318,7 @@ async function interpretar(){
     msg.innerHTML = '<div class="alert ok">Gerando grupo com IA...</div>';
     const res = await fetch(window.SEGMENTADOR.routes.interpretar, {
         method:'POST',
-        headers:{'Content-Type':'application/json','X-CSRF-TOKEN':window.SEGMENTADOR.csrf},
+        headers:{'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN':window.SEGMENTADOR.csrf,'X-Requested-With':'XMLHttpRequest'},
         body: JSON.stringify({texto:document.getElementById('texto').value})
     });
     await tratarResposta(res, 'ia');
@@ -332,7 +332,7 @@ async function gerarManual(){
     const payload = Segmentador.coletarManual();
     const res = await fetch(window.SEGMENTADOR.routes.manual, {
         method:'POST',
-        headers:{'Content-Type':'application/json','X-CSRF-TOKEN':window.SEGMENTADOR.csrf},
+        headers:{'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN':window.SEGMENTADOR.csrf,'X-Requested-With':'XMLHttpRequest'},
         body: JSON.stringify({
             logic: payload.logic, groups: payload.groups,
             limit: document.getElementById('manual_limit').value,
@@ -345,9 +345,21 @@ async function gerarManual(){
 
 async function tratarResposta(res, origem){
     const msg = document.getElementById('msg');
+    const raw = await res.text();
     let data;
-    try { data = await res.json(); } catch(e) { msg.innerHTML = '<div class="alert err">Resposta inválida do servidor.</div>'; return; }
-    if(!data.ok){ msg.innerHTML = '<div class="alert err">'+String(data.erro || 'Erro ao gerar regra').replace(/[&<>'"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))+'</div>'; return; }
+    try {
+        data = JSON.parse(raw);
+    } catch(e) {
+        console.error('[Segmentador] Resposta não-JSON', res.status, raw);
+        msg.innerHTML = '<div class="alert err">Resposta inválida do servidor (HTTP '+res.status+'). Verifique o console.</div>';
+        return;
+    }
+    if(!res.ok || !data.ok){
+        const erro = data.erro || data.error || data.message || ('HTTP '+res.status);
+        console.error('[Segmentador] Erro na prévia', res.status, data);
+        msg.innerHTML = '<div class="alert err">'+String(erro).replace(/[&<>'"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))+'</div>';
+        return;
+    }
     Segmentador.renderPreviewResults(data, origem);
     document.getElementById('form_nome').value = document.getElementById('nome').value || document.getElementById('texto')?.value || 'Novo grupo';
     document.getElementById('form_origem').value = origem;

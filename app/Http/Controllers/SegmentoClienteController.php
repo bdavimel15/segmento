@@ -16,6 +16,7 @@ use App\Services\Segmentos\SegmentoRuleValidator;
 use App\Services\Segmentos\SegmentoQueryExecutor;
 use App\Services\Segmentos\SegmentoSemanticParser;
 use App\Services\Segmentos\SegmentoSqlBuilder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -168,7 +169,9 @@ class SegmentoClienteController extends Controller
 
             return $this->validarEGerarPreview($regra, $validator, $executor, $preview, ['prompt' => $texto]);
         } catch (Throwable $e) {
-            return response()->json(['ok' => false, 'erro' => $e->getMessage()], 422);
+            report($e);
+
+            return $this->jsonSegmentoErro('Erro ao interpretar segmento.', $e);
         }
     }
 
@@ -196,7 +199,9 @@ class SegmentoClienteController extends Controller
 
             return $this->validarEGerarPreview($regra, $validator, $executor, $preview);
         } catch (Throwable $e) {
-            return response()->json(['ok' => false, 'erro' => $e->getMessage()], 422);
+            report($e);
+
+            return $this->jsonSegmentoErro('Erro ao gerar prévia manual.', $e);
         }
     }
 
@@ -209,7 +214,9 @@ class SegmentoClienteController extends Controller
             }
             return $this->validarEGerarPreview($regra, $validator, $executor, $preview);
         } catch (Throwable $e) {
-            return response()->json(['ok' => false, 'erro' => $e->getMessage()], 422);
+            report($e);
+
+            return $this->jsonSegmentoErro('Erro ao gerar prévia.', $e);
         }
     }
 
@@ -486,23 +493,51 @@ class SegmentoClienteController extends Controller
         }
     }
 
-    private function validarEGerarPreview(array $regra, SegmentoRuleValidator $validator, SegmentoQueryExecutor $executor, SegmentoPreviewService $preview, array $context = [])
+    private function validarEGerarPreview(array $regra, SegmentoRuleValidator $validator, SegmentoQueryExecutor $executor, SegmentoPreviewService $preview, array $context = []): JsonResponse
     {
-        $regra = SegmentoRuleHelper::enrichRule($regra);
-        $validator->validar($regra);
-        $exec = $executor->executar($regra, $context);
-        $previewData = $preview->previewFromRows($exec['rows'], $regra, $exec['motor']);
+        try {
+            $regra = SegmentoRuleHelper::enrichRule($regra);
+            $validator->validar($regra);
+            $exec = $executor->executar($regra, $context);
+            $previewData = $preview->previewFromRows($exec['rows'], $regra, $exec['motor']);
+
+            return $this->jsonSegmentoOk([
+                'message' => 'Prévia gerada com sucesso.',
+                'regra' => $regra,
+                'sql' => $exec['sql'],
+                'bindings' => $exec['bindings'],
+                'motor' => $exec['motor'],
+                'preview' => $previewData,
+                'total' => $previewData['total'] ?? 0,
+                'clientes' => $previewData['exemplos'] ?? [],
+                'resumo' => $previewData['resumo'] ?? (new SegmentoRuleExplainer())->resumoRegra($regra),
+            ]);
+        } catch (Throwable $e) {
+            report($e);
+
+            return $this->jsonSegmentoErro('Erro ao gerar prévia.', $e);
+        }
+    }
+
+    private function jsonSegmentoOk(array $payload = [], int $status = 200): JsonResponse
+    {
+        return response()->json(array_merge([
+            'ok' => true,
+            'success' => true,
+        ], $payload), $status, [], JSON_INVALID_UTF8_SUBSTITUTE | JSON_UNESCAPED_UNICODE);
+    }
+
+    private function jsonSegmentoErro(string $message, ?Throwable $e = null, int $status = 422): JsonResponse
+    {
+        $technical = $e?->getMessage() ?? $message;
 
         return response()->json([
-            'ok' => true,
-            'regra' => $regra,
-            'sql' => $exec['sql'],
-            'bindings' => $exec['bindings'],
-            'motor' => $exec['motor'],
-            'preview' => $previewData,
-            'resumo' => $previewData['resumo'] ?? (new SegmentoRuleExplainer())->resumoRegra($regra),
-            'logs' => $exec['logs'] ?? [],
-        ]);
+            'ok' => false,
+            'success' => false,
+            'message' => $message,
+            'erro' => config('app.debug') ? $technical : $message,
+            'error' => config('app.debug') ? $technical : $message,
+        ], $status, [], JSON_INVALID_UTF8_SUBSTITUTE | JSON_UNESCAPED_UNICODE);
     }
 
     public function campoOpcoes(Request $request)
@@ -588,8 +623,13 @@ class SegmentoClienteController extends Controller
     private function parseGroupsFromRequest(Request $request): array
     {
         $groups = [];
+        $inputGroups = $request->input('groups');
 
-        foreach ($request->input('groups', []) as $group) {
+        if (! is_array($inputGroups) && $request->isJson()) {
+            $inputGroups = $request->json('groups', []);
+        }
+
+        foreach ($inputGroups ?? [] as $group) {
             if (!is_array($group)) {
                 continue;
             }
