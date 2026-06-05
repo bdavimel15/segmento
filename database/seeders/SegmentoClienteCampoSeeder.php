@@ -22,7 +22,7 @@ class SegmentoClienteCampoSeeder extends Seeder
             ['chave'=>'bairro','label'=>'Bairro','descricao'=>'Bairro cadastrado do cliente.','categoria'=>'endereco','tipo_valor'=>'string','expressao_sql'=>'c.cli_bairro','operadores_json'=>['equals','not_equals','contains','not_contains','starts_with','ends_with','is_empty','is_not_empty'],'ordem'=>8],
             ['chave'=>'municipio','label'=>'Município','descricao'=>'Município/cidade cadastrado do cliente.','categoria'=>'endereco','tipo_valor'=>'string','expressao_sql'=>'c.cli_cidade','operadores_json'=>['equals','not_equals','contains','not_contains','starts_with','ends_with','is_empty','is_not_empty'],'ordem'=>9],
             ['chave'=>'estado','label'=>'Estado (UF)','descricao'=>'UF do cliente, como BA, SP ou RJ.','categoria'=>'endereco','tipo_valor'=>'string','expressao_sql'=>'c.cli_estado','operadores_json'=>['equals','not_equals','contains','not_contains','starts_with','ends_with','is_empty','is_not_empty'],'ordem'=>10],
-            ['chave'=>'funcionario','label'=>'Funcionário(a)','descricao'=>'Indica se o cliente é funcionário.','categoria'=>'cliente','tipo_valor'=>'select','opcoes'=>['SIM','NÃO'],'expressao_sql'=>"CASE WHEN c.cli_funcionario IN ('S','SIM','Sim','sim','1') THEN 'SIM' ELSE 'NÃO' END",'operadores_json'=>['is_true','is_false','equals','not_equals'],'ordem'=>10],
+            ['chave'=>'funcionario','label'=>'Funcionário(a)','descricao'=>'Indica se o cliente é funcionário.','categoria'=>'cliente','tipo_valor'=>'select','opcoes'=>['SIM','NÃO'],'expressao_sql'=>"CASE WHEN c.cli_funcionario IN ('S','SIM','Sim','sim','1') THEN 'SIM' ELSE 'NÃO' END",'operadores_json'=>['is_true','is_false','equals','not_equals'],'ordem'=>11],
             ['chave'=>'newsletter','label'=>'Newsletter','descricao'=>'Indica se o cliente aceita receber comunicações.','categoria'=>'cliente','tipo_valor'=>'select','opcoes'=>['SIM','NÃO'],'expressao_sql'=>"CASE WHEN c.cli_newsletter IN ('S','SIM','Sim','sim','1') THEN 'SIM' ELSE 'NÃO' END",'operadores_json'=>['is_true','is_false','equals','not_equals'],'ordem'=>11],
             ['chave'=>'qtd_pedidos','label'=>'Qtd. de pedidos','descricao'=>'Quantidade de pedidos confirmados do cliente.','categoria'=>'pedido','tipo_valor'=>'number','expressao_sql'=>'ps.qtd_pedidos','operadores_json'=>['equals','not_equals','greater_than','greater_or_equal','less_than','less_or_equal'],'ordem'=>12],
             ['chave'=>'ultimo_pedido','label'=>'Último pedido','descricao'=>'Data do último pedido confirmado do cliente.','categoria'=>'pedido','tipo_valor'=>'datetime','expressao_sql'=>'ps.ultimo_pedido','operadores_json'=>['today','yesterday','more_than_x_days_ago','less_than_x_days_ago','last_x_days','exactly_x_days_ago','before_date','after_date','equals_date'],'ordem'=>13],
@@ -52,16 +52,19 @@ class SegmentoClienteCampoSeeder extends Seeder
 
     private function normalizeCampoPayload(array $campo): array
     {
+        if (isset($campo['opcoes'])) {
+            $campo['opcoes_json'] = is_array($campo['opcoes']) ? $campo['opcoes'] : $campo['opcoes'];
+            unset($campo['opcoes']);
+        }
+
         foreach ($campo as $key => $value) {
+            // operadores_json e opcoes_json: arrays puros — o cast do Eloquent serializa
+            if (in_array($key, ['operadores_json', 'opcoes_json'], true)) {
+                continue;
+            }
             if (is_array($value)) {
                 $campo[$key] = json_encode($value, JSON_UNESCAPED_UNICODE);
             }
-        }
-
-        // Garante compatibilidade com tabelas antigas/novas.
-        // Se existir coluna "opcoes" e o campo for select, salva as opções em JSON.
-        if (($campo['tipo_valor'] ?? null) === 'select' && isset($campo['opcoes']) && is_array($campo['opcoes'])) {
-            $campo['opcoes'] = json_encode($campo['opcoes'], JSON_UNESCAPED_UNICODE);
         }
 
         return $campo;

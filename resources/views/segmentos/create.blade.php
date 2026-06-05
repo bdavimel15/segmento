@@ -201,6 +201,24 @@
 @push('scripts')
 <script>
 @php
+    $normalizeOperadoresJson = function ($valor) {
+        if (is_array($valor)) {
+            return array_values($valor);
+        }
+        if (! is_string($valor) || $valor === '') {
+            return [];
+        }
+        $decoded = json_decode($valor, true);
+        if (is_array($decoded)) {
+            return array_values($decoded);
+        }
+        if (is_string($decoded)) {
+            $decoded2 = json_decode($decoded, true);
+            return is_array($decoded2) ? array_values($decoded2) : [];
+        }
+        return [];
+    };
+
     $produtoOptions = [];
     try {
         if (\Illuminate\Support\Facades\Schema::hasTable('produtos')) {
@@ -237,7 +255,7 @@ window.SEGMENTADOR = {
             'label' => $c->label,
             'tipo' => $c->tipo_valor,
             'categoria' => $c->categoria ?? 'geral',
-            'operadores' => $c->operadores_json ?? [],
+            'operadores' => $normalizeOperadoresJson($c->operadores_json ?? []),
             'descricao' => $c->descricao,
         ])->values()
     ) !!},
@@ -249,17 +267,47 @@ window.SEGMENTADOR = {
         manual: @json(route('segmentos.manual')),
     }
 };
+/* Diagnóstico: confirma que campos chegaram ao JS */
+(function () {
+    var qtd = window.SEGMENTADOR && window.SEGMENTADOR.campos ? window.SEGMENTADOR.campos.length : 0;
+    if (qtd === 0) {
+        console.error('[Segmentador] ERRO CRÍTICO: window.SEGMENTADOR.campos está vazio! ' +
+            'O construtor manual não funcionará. Rode: php artisan db:seed --class=SegmentoClienteCampoSeeder');
+    } else {
+        console.info('[Segmentador] OK — ' + qtd + ' campos carregados.');
+    }
+})();
 </script>
 <script src="{{ asset('js/segmentador.js') }}"></script>
 <script>
-function setModo(novo){
+function setModo(novo) {
     document.getElementById('tabIa').classList.toggle('active', novo === 'ia');
     document.getElementById('tabManual').classList.toggle('active', novo === 'manual');
-    document.getElementById('boxIa').classList.toggle('hidden', novo !== 'ia');
-    document.getElementById('boxManual').classList.toggle('hidden', novo !== 'manual');
+
+    var boxIa     = document.getElementById('boxIa');
+    var boxManual = document.getElementById('boxManual');
+
+    /* Remove a classe .hidden de ambos para que o JS interno não aborte */
+    boxIa.classList.remove('hidden');
+    boxManual.classList.remove('hidden');
+
+    /* Usa style.display — tem precedência sobre CSS .hidden {display:none!important}
+       e é aplicado imediatamente, sem aguardar recálculo de estilo */
+    boxIa.style.display     = (novo === 'ia')     ? '' : 'none';
+    boxManual.style.display = (novo === 'manual') ? '' : 'none';
+
     document.getElementById('form_origem').value = novo;
-    if(novo === 'manual' && document.querySelectorAll('.rule-group').length === 0) Segmentador.addGroup();
-    if(novo === 'manual') Segmentador.updateLiveSummary();
+
+    if (novo === 'manual') {
+        /* setTimeout(0) garante que o event loop completou o ciclo de layout
+           antes de addGroup tentar criar/inserir elementos no DOM interno */
+        setTimeout(function () {
+            if (document.querySelectorAll('.rule-group').length === 0) {
+                Segmentador.addGroup();
+            }
+            Segmentador.updateLiveSummary();
+        }, 0);
+    }
 }
 function usarExemplo(texto){ document.getElementById('texto').value = texto; if(!document.getElementById('nome').value) document.getElementById('nome').value = texto; }
 function addGroup(){ Segmentador.addGroup(); }

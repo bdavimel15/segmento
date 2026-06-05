@@ -41,6 +41,14 @@ class Cliente extends Model
         return $this->hasMany(Pedido::class, 'cliente_id', 'cliente_id');
     }
 
+    /** Pedidos confirmados — usado pelo motor Eloquent de segmentos */
+    public function pedidosConfirmados()
+    {
+        return $this->pedidos()
+            ->whereNull('excluido')
+            ->whereHas('status', fn ($q) => $q->where('sta_confirmado', 'S'));
+    }
+
     public function produtosComprados()
     {
         return $this->hasManyThrough(

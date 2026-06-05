@@ -7,12 +7,55 @@ use Illuminate\Http\Client\ConnectionException;
 
 class AiSegmentoInterpreter
 {
+    public function __construct(
+        private ?SegmentoSemanticParser $semanticParser = null,
+        private ?SegmentoExecutionLogger $logger = null,
+    ) {
+        $this->semanticParser ??= new SegmentoSemanticParser();
+    }
+
     public function interpretar(string $mensagem): array
+    {
+        $logger = $this->logger ?? new SegmentoExecutionLogger();
+        $logger->prompt($mensagem);
+
+        try {
+            $payload = $this->chamarZaia($mensagem);
+            $logger->jsonGerado($payload);
+
+            $semantic = $this->semanticParser->parse($payload, $mensagem);
+            $regra = $this->normalizar($semantic, $mensagem, 'ia');
+
+            if (($regra['groups'] ?? []) === [] && ($regra['conditions'] ?? []) === []) {
+                throw new \RuntimeException('IA retornou estrutura vazia.');
+            }
+
+            return $regra;
+        } catch (\Throwable $e) {
+            $logger->erro('Falha na IA: ' . $e->getMessage(), $e);
+
+            $fallback = $this->semanticParser->fallbackFromPrompt($mensagem);
+
+            if (($fallback['conditions'] ?? []) !== [] || ($fallback['groups'] ?? []) !== []) {
+                $logger->fallback('ia', 'heuristica', $e->getMessage());
+                $regra = $this->normalizar($fallback, $mensagem, 'ia');
+                $regra['_fallback'] = true;
+
+                return $regra;
+            }
+
+            throw $e;
+        }
+    }
+
+    /** @return array<string, mixed> */
+    private function chamarZaia(string $mensagem): array
     {
         $url = env('ZAIA_WEBHOOK_URL');
 
         if (!$url) {
-            throw new \Exception('ZAIA_WEBHOOK_URL não configurada no .env');
+            // Sem Zaia: usa apenas heurística local
+            return $this->semanticParser->fallbackFromPrompt($mensagem);
         }
 
         try {
@@ -21,11 +64,11 @@ class AiSegmentoInterpreter
                 ->acceptJson()
                 ->asJson()
                 ->post($url, [
-                    // Mantém todos os nomes para evitar diferença entre teste e produção na Zaia
                     'content' => $mensagem,
                     'mensagem' => $mensagem,
                     'texto' => $mensagem,
                     'descricao' => $mensagem,
+                    'instrucao' => 'Retorne APENAS JSON semântico de filtros. NÃO gere SQL. Use: grupos[{operador, condicoes[{campo, operador, valor}]}]',
                 ]);
         } catch (ConnectionException $e) {
             throw new \Exception('Zaia demorou para responder ou não conectou.');
@@ -36,16 +79,17 @@ class AiSegmentoInterpreter
         }
 
         $json = $response->json();
-
-        // A Zaia pode responder de várias formas:
-        // { data: {...} }, { content: {...} }, { code: 200, data: {...} } ou direto {...}
         $payload = $json['data'] ?? $json['content'] ?? $json;
 
         if (isset($payload['content']) && is_array($payload['content'])) {
             $payload = $payload['content'];
         }
 
-        return $this->normalizar($payload, $mensagem, 'ia');
+        if (!is_array($payload)) {
+            throw new \RuntimeException('Resposta da IA não é JSON válido.');
+        }
+
+        return $payload;
     }
 
     public function normalizar(array $regra, string $mensagem = '', string $origem = 'manual'): array

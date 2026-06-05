@@ -10,9 +10,9 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             MockClienteSeeder::class,
-            SegmentoClienteCampoSeeder::class,
             ProdutoRestauranteSeeder::class,
             PedidoProdutoClienteSeeder::class,
+            SegmentoClienteCampoSeeder::class,
             ProdutoCampoFiltroSeeder::class,
             SegmentoPresetSeeder::class,
         ]);

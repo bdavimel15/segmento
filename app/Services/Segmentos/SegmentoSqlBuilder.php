@@ -42,7 +42,7 @@ class SegmentoSqlBuilder
                 $op = (string)($condition['operator'] ?? '');
                 $value = $condition['value'] ?? null;
 
-                $value = $this->normalizarValor($field, $op, $value);
+                $value = $this->normalizarValor($field, $op, $value, $campo);
 
                 [$sqlPart, $partBindings] = $this->conditionToSql($expr, $op, $value, $field);
                 $groupWhere[] = $sqlPart;
@@ -90,7 +90,9 @@ class SegmentoSqlBuilder
     private function aplicarJoinNecessario(string $field, array &$joins): void
     {
         if (in_array($field, ['qtd_pedidos', 'ultimo_pedido', 'primeira_compra', 'valor_total_comprado', 'status_pedido', 'canal_pedido', 'forma_pagamento'], true)) {
-            $joins['pedido_stats'] = "LEFT JOIN (SELECT p.cliente_id, COUNT(*) qtd_pedidos, MAX(COALESCE(p.ped_data, p.cadastrado)) ultimo_pedido, MIN(COALESCE(p.ped_data, p.cadastrado)) primeira_compra, SUM(COALESCE(p.ped_valor_total, 0)) valor_total_comprado, " . $this->groupConcatDistinctSql('s.sta_nome') . " status_pedido, NULL canal_pedido, NULL forma_pagamento FROM pedido p INNER JOIN status s ON s.status_id = p.status_id WHERE p.excluido IS NULL AND s.sta_confirmado = 'S' GROUP BY p.cliente_id) ps ON ps.cliente_id = c.cliente_id";
+            $canalExpr = Schema::hasColumn('pedido', 'canal_pedido') ? $this->groupConcatDistinctSql('p.canal_pedido') : 'NULL';
+            $formaExpr = Schema::hasColumn('pedido', 'forma_pagamento') ? $this->groupConcatDistinctSql('p.forma_pagamento') : 'NULL';
+            $joins['pedido_stats'] = "LEFT JOIN (SELECT p.cliente_id, COUNT(*) qtd_pedidos, MAX(COALESCE(p.ped_data, p.cadastrado)) ultimo_pedido, MIN(COALESCE(p.ped_data, p.cadastrado)) primeira_compra, SUM(COALESCE(p.ped_valor_total, 0)) valor_total_comprado, " . $this->groupConcatDistinctSql('s.sta_nome') . " status_pedido, {$canalExpr} canal_pedido, {$formaExpr} forma_pagamento FROM pedido p INNER JOIN status s ON s.status_id = p.status_id WHERE p.excluido IS NULL AND s.sta_confirmado = 'S' GROUP BY p.cliente_id) ps ON ps.cliente_id = c.cliente_id";
         }
 
         if (in_array($field, ['produto_comprado', 'produto_nome', 'produto'], true)) {
@@ -127,7 +129,7 @@ class SegmentoSqlBuilder
         }
     }
 
-    private function normalizarValor(string $field, string $op, mixed $value): mixed
+    private function normalizarValor(string $field, string $op, mixed $value, ?SegmentoClienteCampo $campo = null): mixed
     {
         if (is_string($value) && in_array($field, ['sexo', 'newsletter', 'funcionario', 'bairro', 'municipio', 'estado', 'email', 'telefone', 'cpf', 'nome', 'produto_comprado', 'produto_nome', 'produto'], true)) {
             $value = trim($value);
@@ -136,6 +138,22 @@ class SegmentoSqlBuilder
         if (in_array($field, ['newsletter', 'funcionario'], true) && in_array($op, ['equals', 'not_equals'], true) && is_string($value)) {
             $v = $this->normalizarTextoBusca($value);
             return in_array($v, ['sim', 's', 'true', '1', 'aceita', 'ativo', 'ativos', 'assina', 'assinante'], true) ? 'sim' : 'nao';
+        }
+
+        if ($value === null || $value === '') {
+            return $value;
+        }
+
+        $dayOps = ['last_x_days', 'next_x_days', 'exactly_x_days_ago', 'more_than_x_days_ago', 'less_than_x_days_ago'];
+        $numericFields = ['qtd_pedidos', 'idade', 'pontos_totais', 'cashback', 'valor_total_comprado'];
+        $tipo = (string) ($campo?->tipo_valor ?? '');
+
+        if (in_array($op, $dayOps, true) || in_array($field, $numericFields, true) || in_array($tipo, ['number', 'money'], true)) {
+            if (is_string($value) && is_numeric(trim($value))) {
+                $trim = trim($value);
+
+                return str_contains($trim, '.') ? (float) $trim : (int) $trim;
+            }
         }
 
         return $value;

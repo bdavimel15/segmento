@@ -11,8 +11,9 @@ class SegmentoRuleValidator
         'equals', 'not_equals', 'greater_than', 'greater_or_equal', 'less_than', 'less_or_equal', 'between',
         'contains', 'not_contains', 'starts_with', 'ends_with', 'is_empty', 'is_not_empty',
         'is_true', 'is_false', 'exists', 'not_exists', 'today', 'yesterday', 'equals_date',
-        'before_date', 'after_date', 'between_dates', 'last_x_days', 'next_x_days',
-        'exactly_x_days_ago', 'more_than_x_days_ago', 'less_than_x_days_ago', 'month_equals', 'month_between',
+        'before_date', 'after_date', 'between_dates', 'last_x_days', 'last_x_months', 'last_x_years',
+        'next_x_days', 'exactly_x_days_ago', 'more_than_x_days_ago', 'less_than_x_days_ago',
+        'month_equals', 'month_between', 'in', 'not_in',
     ];
 
     public function validar(array $regra): void

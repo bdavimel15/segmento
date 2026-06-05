@@ -7,13 +7,24 @@
     const UF_LIST = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 
     const OP_LABELS = {
-        equals:'é igual a', not_equals:'é diferente de', greater_than:'é maior que', greater_or_equal:'é pelo menos',
-        less_than:'é menor que', less_or_equal:'é no máximo', between:'está entre', contains:'contém', not_contains:'não contém',
-        starts_with:'começa com', ends_with:'termina com', is_empty:'está vazio', is_not_empty:'não está vazio',
-        is_true:'sim', is_false:'não', exists:'existe', not_exists:'não existe', today:'é hoje', yesterday:'foi ontem',
-        equals_date:'é na data', before_date:'antes de', after_date:'depois de', between_dates:'entre datas',
-        last_x_days:'nos últimos X dias', next_x_days:'nos próximos X dias', exactly_x_days_ago:'exatamente X dias atrás',
-        more_than_x_days_ago:'há mais de X dias', less_than_x_days_ago:'há menos de X dias'
+        equals: 'Igual a', not_equals: 'Diferente de', greater_than: 'Maior que', greater_or_equal: 'Maior ou igual',
+        less_than: 'Menor que', less_or_equal: 'Menor ou igual', between: 'Entre', contains: 'Contém', not_contains: 'Não contém',
+        starts_with: 'Começa com', ends_with: 'Termina com', is_empty: 'Está vazio', is_not_empty: 'Não está vazio',
+        is_true: 'Sim', is_false: 'Não', exists: 'Existe', not_exists: 'Não existe', today: 'Hoje', yesterday: 'Ontem',
+        equals_date: 'Igual a data', before_date: 'Antes de', after_date: 'Depois de', between_dates: 'Entre datas',
+        last_x_days: 'Últimos X dias', next_x_days: 'Próximos X dias', exactly_x_days_ago: 'Exatamente X dias atrás',
+        more_than_x_days_ago: 'Há mais de X dias', less_than_x_days_ago: 'Há menos de X dias',
+        month_equals: 'Mês igual a', month_between: 'Mês entre'
+    };
+
+    const DEFAULT_OPS_BY_TIPO = {
+        string: ['equals', 'not_equals', 'contains', 'not_contains', 'starts_with', 'ends_with', 'is_empty', 'is_not_empty'],
+        number: ['equals', 'not_equals', 'greater_than', 'greater_or_equal', 'less_than', 'less_or_equal', 'between', 'is_empty', 'is_not_empty'],
+        money: ['equals', 'not_equals', 'greater_than', 'greater_or_equal', 'less_than', 'less_or_equal', 'between', 'is_empty', 'is_not_empty'],
+        date: ['today', 'equals_date', 'before_date', 'after_date', 'between_dates', 'last_x_days', 'is_empty', 'is_not_empty'],
+        datetime: ['today', 'yesterday', 'equals_date', 'before_date', 'after_date', 'last_x_days', 'more_than_x_days_ago', 'less_than_x_days_ago', 'is_empty', 'is_not_empty'],
+        select: ['equals', 'not_equals', 'is_empty', 'is_not_empty'],
+        boolean: ['is_true', 'is_false', 'equals', 'not_equals'],
     };
 
     const OP_HINTS = {
@@ -38,12 +49,40 @@
     let lastPreviewData = null;
 
     function cfg() { return window.SEGMENTADOR || {}; }
-    function campos() { return cfg().campos || []; }
+
+    /* Garante array real — aceita array, objeto ou JSON string (incl. dupla codificação legada) */
+    function toArray(val) {
+        if (val === null || val === undefined || val === '') return [];
+        if (Array.isArray(val)) return val;
+        if (typeof val === 'string') {
+            try {
+                let parsed = JSON.parse(val);
+                if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+                if (Array.isArray(parsed)) return parsed;
+                if (parsed && typeof parsed === 'object') return Object.values(parsed);
+            } catch (e) { /* ignora */ }
+            return [];
+        }
+        if (typeof val === 'object') return Object.values(val);
+        return [];
+    }
+
+    function getOperadores(campo) {
+        if (!campo) return [];
+        const raw = campo.operadores ?? campo.operadores_json ?? [];
+        const ops = toArray(raw);
+        if (ops.length) return ops;
+        const tipo = campo.tipo || campo.tipo_valor || campo.type || 'string';
+        return DEFAULT_OPS_BY_TIPO[tipo] || DEFAULT_OPS_BY_TIPO.string;
+    }
+
+    function campos() { return toArray(cfg().campos); }
     function campoByChave(chave) { return campos().find(c => c.chave === chave) || campos()[0]; }
 
     function escapeHtml(value) {
         return String(value ?? '').replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
     }
+
 
     const TIPO_LABELS = {
         string: 'Texto', number: 'Número', date: 'Data', datetime: 'Data/hora',
@@ -160,7 +199,7 @@
         if (!humanEl) return;
 
         const box = document.getElementById('boxManual');
-        if (box?.classList.contains('hidden')) return;
+        if (!box || box.classList.contains('hidden') || box.style.display === 'none') return;
 
         if (!document.querySelectorAll('.rule-group').length) {
             humanEl.textContent = 'Adicione condições para definir o público.';
@@ -223,7 +262,7 @@
 
     function campoOptionsGrouped(selected) {
         const grouped = {};
-        campos().forEach(c => {
+        toArray(campos()).forEach(c => {
             const key = uiCategoria(c);
             if (!grouped[key]) grouped[key] = [];
             grouped[key].push(c);
@@ -246,8 +285,14 @@
         const campo = campoByChave(chave);
         const fieldSelect = row.querySelector('.field');
         if (fieldSelect) fieldSelect.title = campo?.descricao || '';
-        row.querySelector('.operator').innerHTML = operadoresOptions(chave);
-        refreshValueHint(row.querySelector('.operator'));
+        const opSelect = row.querySelector('.operator');
+        if (!opSelect) return;
+        const ops = getOperadores(campo);
+        const prev = opSelect.value;
+        const selected = ops.includes(prev) ? prev : (ops[0] || 'equals');
+        opSelect.innerHTML = operadoresOptions(chave, selected);
+        opSelect.value = selected;
+        refreshValueHint(opSelect);
     }
 
     function initCatalogFilter() {
@@ -410,8 +455,11 @@
     }
 
     function operadoresOptions(chave, selected) {
-        const campo = campoByChave(chave);
-        return (campo?.operadores || []).map(op =>
+        const ops = getOperadores(campoByChave(chave));
+        if (!ops.length) {
+            return `<option value="equals"${selected === 'equals' || !selected ? ' selected' : ''}>Igual a</option>`;
+        }
+        return ops.map(op =>
             `<option value="${escapeHtml(op)}"${selected === op ? ' selected' : ''}>${escapeHtml(OP_LABELS[op] || op)}</option>`
         ).join('');
     }
@@ -457,7 +505,9 @@
             </div>`;
         box.appendChild(wrapper);
         const conditions = preset?.conditions?.length ? preset.conditions : [{}];
-        conditions.forEach(c => addCondition(wrapper.querySelector('.btn-add-condition'), c));
+        /* Passa o .rule-group diretamente — evita depender de closest() no contexto de addGroup */
+        const groupEl = wrapper.querySelector('.rule-group');
+        conditions.forEach(c => addCondition(groupEl, c));
         renumberGroups();
         updateLiveSummary();
     }
@@ -524,37 +574,74 @@
     }
 
     function addCondition(trigger, preset) {
-        const group = trigger.closest('.rule-group');
-        const first = campos()[0]?.chave || '';
-        const field = preset?.field || first;
-        const operator = preset?.operator || (campoByChave(field)?.operadores?.[0] || 'equals');
-        const item = document.createElement('div');
-        item.className = 'rule-condition-item';
-        const campo = campoByChave(field);
-        item.innerHTML = `
-            <div class="rule-row rule-row-single">
-                <div class="form-group form-group-field">
-                    <select class="form-control field" onchange="Segmentador.refreshOps(this)" title="${escapeHtml(campo?.descricao || '')}">${campoOptionsGrouped(field)}</select>
-                </div>
-                <div class="form-group form-group-op">
-                    <select class="form-control operator" onchange="Segmentador.refreshValueHint(this)" title="Tipo de comparação">${operadoresOptions(field, operator)}</select>
-                </div>
-                <div class="form-group form-group-value">
-                    <div class="value-container">${buildValueWidgetHtml(field, operator, preset?.value ?? '')}</div>
-                </div>
-                <div class="rule-actions-col">
-                    <button class="action-btn" type="button" onclick="Segmentador.moveCondition(this,-1)" title="Mover para cima" aria-label="Mover para cima">${ACTION_ICON_UP}</button>
-                    <button class="action-btn" type="button" onclick="Segmentador.moveCondition(this,1)" title="Mover para baixo" aria-label="Mover para baixo">${ACTION_ICON_DOWN}</button>
-                    <button class="action-btn action-btn-danger" type="button" onclick="Segmentador.removeCondition(this)" title="Remover condição" aria-label="Remover condição">${ACTION_ICON_TRASH}</button>
-                </div>
-            </div>`;
-        group.querySelector('.rule-group-conditions').appendChild(item);
-        const row = item.querySelector('.rule-row');
-        refreshValueHint(item.querySelector('.operator'));
-        const ac = item.querySelector('[data-autocomplete-campo]');
-        if (ac) bindAutocomplete(ac);
-        refreshGroupConnectors(group);
-        updateLiveSummary();
+        try {
+            /* Aceita tanto o botão (.btn-add-condition) quanto o elemento .rule-group diretamente */
+            const group = (trigger && trigger.classList && trigger.classList.contains('rule-group'))
+                ? trigger
+                : trigger?.closest?.('.rule-group');
+
+            if (!group) {
+                console.error('[Segmentador] addCondition: .rule-group não encontrado', trigger);
+                return;
+            }
+
+            /* Garante que campos foram carregados */
+            const todosCampos = campos();
+            if (!todosCampos.length) {
+                console.error('[Segmentador] ERRO: window.SEGMENTADOR.campos está vazio. Rode o SegmentoClienteCampoSeeder.');
+                return;
+            }
+
+            /* Garante container de condições */
+            let condContainer = group.querySelector('.rule-group-conditions');
+            if (!condContainer) {
+                condContainer = document.createElement('div');
+                condContainer.className = 'rule-group-conditions';
+                const addBtn = group.querySelector('.btn-add-condition');
+                if (addBtn) group.insertBefore(condContainer, addBtn);
+                else group.appendChild(condContainer);
+            }
+
+            const first    = todosCampos[0].chave;
+            const field    = preset?.field || first;
+            const campo    = campoByChave(field);
+            const ops      = getOperadores(campo);
+            const operator = preset?.operator || ops[0] || 'equals';
+
+            const optsHtml  = campoOptionsGrouped(field);
+            const operHtml  = operadoresOptions(field, operator);
+            const valueHtml = buildValueWidgetHtml(field, operator, preset?.value ?? '');
+
+            const item = document.createElement('div');
+            item.className = 'rule-condition-item';
+            item.innerHTML = `
+                <div class="rule-row rule-row-single">
+                    <div class="form-group form-group-field">
+                        <select class="form-control field" onchange="Segmentador.refreshOps(this)" title="${escapeHtml(campo?.descricao || '')}">${optsHtml}</select>
+                    </div>
+                    <div class="form-group form-group-op">
+                        <select class="form-control operator" onchange="Segmentador.refreshValueHint(this)" title="Tipo de comparação">${operHtml}</select>
+                    </div>
+                    <div class="form-group form-group-value">
+                        <div class="value-container">${valueHtml}</div>
+                    </div>
+                    <div class="rule-actions-col">
+                        <button class="action-btn" type="button" onclick="Segmentador.moveCondition(this,-1)" title="Mover para cima" aria-label="Mover para cima">${ACTION_ICON_UP}</button>
+                        <button class="action-btn" type="button" onclick="Segmentador.moveCondition(this,1)" title="Mover para baixo" aria-label="Mover para baixo">${ACTION_ICON_DOWN}</button>
+                        <button class="action-btn action-btn-danger" type="button" onclick="Segmentador.removeCondition(this)" title="Remover condição" aria-label="Remover condição">${ACTION_ICON_TRASH}</button>
+                    </div>
+                </div>`;
+
+            condContainer.appendChild(item);
+            refreshValueHint(item.querySelector('.operator'));
+            const ac = item.querySelector('[data-autocomplete-campo]');
+            if (ac) bindAutocomplete(ac);
+            refreshGroupConnectors(group);
+            updateLiveSummary();
+
+        } catch (err) {
+            console.error('[Segmentador] addCondition falhou:', err);
+        }
     }
 
     function removeCondition(btn) {
@@ -701,6 +788,7 @@
         return `<div class="debug-panel">
             <div class="debug-panel-title">Como o sistema executou a consulta</div>
             <div class="debug-metrics">
+                <div class="debug-metric"><span class="debug-metric-value">${escapeHtml(data.motor || p.motor || 'sql')}</span><span class="debug-metric-label">Motor</span></div>
                 <div class="debug-metric"><span class="debug-metric-value">${p.analisados ?? p.total ?? 0}</span><span class="debug-metric-label">Analisados</span></div>
                 <div class="debug-metric"><span class="debug-metric-value">${p.aprovados ?? p.total ?? 0}</span><span class="debug-metric-label">Aprovados</span></div>
                 <div class="debug-metric"><span class="debug-metric-value">${p.tempo_ms ?? '—'} ms</span><span class="debug-metric-label">Tempo</span></div>

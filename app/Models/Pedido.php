@@ -35,6 +35,11 @@ class Pedido extends Model
         return $this->belongsTo(Cliente::class, 'cliente_id', 'cliente_id');
     }
 
+    public function status()
+    {
+        return $this->belongsTo(Status::class, 'status_id', 'status_id');
+    }
+
     public function itens()
     {
         return $this->hasMany(PedidoItem::class, 'pedido_id', 'pedido_id');

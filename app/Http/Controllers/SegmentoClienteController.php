@@ -13,6 +13,8 @@ use App\Services\Segmentos\SegmentoPreviewService;
 use App\Services\Segmentos\SegmentoRuleExplainer;
 use App\Services\Segmentos\SegmentoRuleHelper;
 use App\Services\Segmentos\SegmentoRuleValidator;
+use App\Services\Segmentos\SegmentoQueryExecutor;
+use App\Services\Segmentos\SegmentoSemanticParser;
 use App\Services\Segmentos\SegmentoSqlBuilder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -69,11 +71,11 @@ class SegmentoClienteController extends Controller
         return view('segmentos.presets', compact('presets'));
     }
 
-    public function usarPreset(int $id, SegmentoRuleValidator $validator, SegmentoSqlBuilder $builder, SegmentoPreviewService $preview)
+    public function usarPreset(int $id, SegmentoRuleValidator $validator, SegmentoQueryExecutor $executor, SegmentoPreviewService $preview)
     {
         try {
             $preset = SegmentoClientePreset::where('ativo', 'S')->findOrFail($id);
-            $regra = $preset->regra_json ?? [];
+            $regra = (new SegmentoSemanticParser())->parse($preset->regra_json ?? []);
 
             if (!is_array($regra)) {
                 throw new \RuntimeException('Preset com regra JSON inválida.');
@@ -81,10 +83,11 @@ class SegmentoClienteController extends Controller
 
             $regra['origem'] = 'preset';
             $regra['resumo_humano'] = $regra['resumo_humano'] ?? ('Modelo pronto: ' . $preset->nome);
+            $regra = SegmentoRuleHelper::enrichRule($regra);
 
             $validator->validar($regra);
-            $sqlData = $builder->build($regra);
-            $previewData = $preview->preview($sqlData['sql'], $sqlData['bindings'], $regra);
+            $exec = $executor->executar($regra);
+            $previewData = $preview->previewFromRows($exec['rows'], $regra, $exec['motor']);
 
             $segmento = SegmentoCliente::create([
                 'nome' => $preset->nome,
@@ -105,7 +108,7 @@ class SegmentoClienteController extends Controller
                 'segmento_cliente_id' => $segmento->segmento_cliente_id,
                 'canal' => 'preview',
                 'regra_json_snapshot' => $regra,
-                'sql_gerada_snapshot' => $sqlData['sql'],
+                'sql_gerada_snapshot' => $exec['sql'],
                 'total_encontrado' => $previewData['total'] ?? 0,
                 'status' => ($previewData['ok'] ?? false) ? 'concluida' : 'erro',
                 'erro' => $previewData['erro'] ?? null,
@@ -128,7 +131,7 @@ class SegmentoClienteController extends Controller
         }
     }
 
-    public function show(int $id, SegmentoSqlBuilder $builder, SegmentoPreviewService $preview)
+    public function show(int $id, SegmentoQueryExecutor $executor, SegmentoPreviewService $preview)
     {
         $segmento = SegmentoCliente::findOrFail($id);
         $execucoes = SegmentoClienteExecucao::where('segmento_cliente_id', $id)
@@ -140,13 +143,14 @@ class SegmentoClienteController extends Controller
             ->limit(20)
             ->get();
 
-        $sqlData = ['sql' => null, 'bindings' => []];
+        $sqlData = ['sql' => null, 'bindings' => [], 'motor' => null];
         $previewData = ['ok' => false, 'total' => 0, 'exemplos' => []];
 
         try {
             $regra = $segmento->regra_json ?? [];
-            $sqlData = $builder->build($regra);
-            $previewData = $preview->preview($sqlData['sql'], $sqlData['bindings'], $regra);
+            $exec = $executor->executar($regra);
+            $sqlData = ['sql' => $exec['sql'], 'bindings' => $exec['bindings'], 'motor' => $exec['motor']];
+            $previewData = $preview->previewFromRows($exec['rows'], $regra, $exec['motor']);
         } catch (Throwable $e) {
             $previewData = ['ok' => false, 'total' => 0, 'exemplos' => [], 'explicacoes' => [], 'erro' => $e->getMessage()];
         }
@@ -156,19 +160,19 @@ class SegmentoClienteController extends Controller
         return view('segmentos.show', compact('segmento', 'execucoes', 'validacoes', 'sqlData', 'previewData', 'resumoRegra'));
     }
 
-    public function interpretar(Request $request, AiSegmentoInterpreter $ai, SegmentoRuleValidator $validator, SegmentoSqlBuilder $builder, SegmentoPreviewService $preview)
+    public function interpretar(Request $request, AiSegmentoInterpreter $ai, SegmentoRuleValidator $validator, SegmentoQueryExecutor $executor, SegmentoPreviewService $preview)
     {
         try {
             $texto = $request->input('texto', '');
             $regra = $ai->interpretar($texto);
 
-            return $this->validarEGerarPreview($regra, $validator, $builder, $preview);
+            return $this->validarEGerarPreview($regra, $validator, $executor, $preview, ['prompt' => $texto]);
         } catch (Throwable $e) {
             return response()->json(['ok' => false, 'erro' => $e->getMessage()], 422);
         }
     }
 
-    public function manual(Request $request, AiSegmentoInterpreter $normalizer, SegmentoRuleValidator $validator, SegmentoSqlBuilder $builder, SegmentoPreviewService $preview)
+    public function manual(Request $request, AiSegmentoInterpreter $normalizer, SegmentoRuleValidator $validator, SegmentoQueryExecutor $executor, SegmentoPreviewService $preview)
     {
         try {
             $groups = $this->parseGroupsFromRequest($request);
@@ -190,34 +194,34 @@ class SegmentoClienteController extends Controller
                 'resumo_humano' => 'Grupo criado manualmente no editor visual.',
             ], '', 'manual');
 
-            return $this->validarEGerarPreview($regra, $validator, $builder, $preview);
+            return $this->validarEGerarPreview($regra, $validator, $executor, $preview);
         } catch (Throwable $e) {
             return response()->json(['ok' => false, 'erro' => $e->getMessage()], 422);
         }
     }
 
-    public function preview(Request $request, SegmentoRuleValidator $validator, SegmentoSqlBuilder $builder, SegmentoPreviewService $preview)
+    public function preview(Request $request, SegmentoRuleValidator $validator, SegmentoQueryExecutor $executor, SegmentoPreviewService $preview)
     {
         try {
             $regra = json_decode($request->input('regra_json', '{}'), true);
             if (!is_array($regra)) {
                 throw new \RuntimeException('JSON de regra inválido.');
             }
-            return $this->validarEGerarPreview($regra, $validator, $builder, $preview);
+            return $this->validarEGerarPreview($regra, $validator, $executor, $preview);
         } catch (Throwable $e) {
             return response()->json(['ok' => false, 'erro' => $e->getMessage()], 422);
         }
     }
 
-    public function refreshPreview(int $id, SegmentoRuleValidator $validator, SegmentoSqlBuilder $builder, SegmentoPreviewService $preview)
+    public function refreshPreview(int $id, SegmentoRuleValidator $validator, SegmentoQueryExecutor $executor, SegmentoPreviewService $preview)
     {
         try {
             $segmento = SegmentoCliente::findOrFail($id);
             $regra = $segmento->regra_json ?? [];
 
             $validator->validar($regra);
-            $sqlData = $builder->build($regra);
-            $previewData = $preview->preview($sqlData['sql'], $sqlData['bindings'], $regra);
+            $exec = $executor->executar($regra);
+            $previewData = $preview->previewFromRows($exec['rows'], $regra, $exec['motor']);
 
             $segmento->ultima_previa_qtd = $previewData['total'] ?? 0;
             $segmento->ultima_previa_em = now();
@@ -227,7 +231,7 @@ class SegmentoClienteController extends Controller
                 'segmento_cliente_id' => $segmento->segmento_cliente_id,
                 'canal' => 'preview',
                 'regra_json_snapshot' => $regra,
-                'sql_gerada_snapshot' => $sqlData['sql'],
+                'sql_gerada_snapshot' => $exec['sql'],
                 'total_encontrado' => $previewData['total'] ?? 0,
                 'status' => ($previewData['ok'] ?? false) ? 'concluida' : 'erro',
                 'erro' => $previewData['erro'] ?? null,
@@ -282,7 +286,7 @@ class SegmentoClienteController extends Controller
         return redirect()->route('segmentos.show', $id)->with('ok', 'Grupo reprovado.');
     }
 
-    public function store(Request $request, SegmentoRuleValidator $validator, SegmentoSqlBuilder $builder, SegmentoPreviewService $preview)
+    public function store(Request $request, SegmentoRuleValidator $validator, SegmentoQueryExecutor $executor, SegmentoPreviewService $preview)
     {
         try {
             $regra = json_decode($request->input('regra_json', '{}'), true);
@@ -293,8 +297,8 @@ class SegmentoClienteController extends Controller
             $regra = SegmentoRuleHelper::enrichRule($regra);
 
             $validator->validar($regra);
-            $sqlData = $builder->build($regra);
-            $previewData = $preview->preview($sqlData['sql'], $sqlData['bindings'], $regra);
+            $exec = $executor->executar($regra);
+            $previewData = $preview->previewFromRows($exec['rows'], $regra, $exec['motor']);
 
             $origem = $regra['origem'] ?? $request->input('origem', 'manual');
 
@@ -316,7 +320,7 @@ class SegmentoClienteController extends Controller
                 'segmento_cliente_id' => $segmento->segmento_cliente_id,
                 'canal' => 'preview',
                 'regra_json_snapshot' => $regra,
-                'sql_gerada_snapshot' => $sqlData['sql'],
+                'sql_gerada_snapshot' => $exec['sql'],
                 'total_encontrado' => $previewData['total'] ?? 0,
                 'status' => ($previewData['ok'] ?? false) ? 'concluida' : 'erro',
                 'erro' => $previewData['erro'] ?? null,
@@ -350,7 +354,7 @@ class SegmentoClienteController extends Controller
         return view('segmentos.edit', compact('segmento', 'campos'));
     }
 
-    public function update(Request $request, int $id, SegmentoRuleValidator $validator, SegmentoSqlBuilder $builder, SegmentoPreviewService $preview)
+    public function update(Request $request, int $id, SegmentoRuleValidator $validator, SegmentoQueryExecutor $executor, SegmentoPreviewService $preview)
     {
         try {
             $segmento = SegmentoCliente::findOrFail($id);
@@ -363,8 +367,8 @@ class SegmentoClienteController extends Controller
             $regra = SegmentoRuleHelper::enrichRule($regra);
 
             $validator->validar($regra);
-            $sqlData = $builder->build($regra);
-            $previewData = $preview->preview($sqlData['sql'], $sqlData['bindings'], $regra);
+            $exec = $executor->executar($regra);
+            $previewData = $preview->previewFromRows($exec['rows'], $regra, $exec['motor']);
 
             $segmento->update([
                 'nome' => $request->input('nome', $segmento->nome),
@@ -382,7 +386,7 @@ class SegmentoClienteController extends Controller
                 'segmento_cliente_id' => $segmento->segmento_cliente_id,
                 'canal' => 'preview',
                 'regra_json_snapshot' => $regra,
-                'sql_gerada_snapshot' => $sqlData['sql'],
+                'sql_gerada_snapshot' => $exec['sql'],
                 'total_encontrado' => $previewData['total'] ?? 0,
                 'status' => ($previewData['ok'] ?? false) ? 'concluida' : 'erro',
                 'erro' => $previewData['erro'] ?? null,
@@ -410,24 +414,24 @@ class SegmentoClienteController extends Controller
     }
 
 
-    public function exportar(Request $request, int $id, SegmentoSqlBuilder $builder, SegmentoPreviewService $preview)
+    public function exportar(Request $request, int $id, SegmentoQueryExecutor $executor, SegmentoPreviewService $preview)
     {
         $tipo = (string) $request->query('tipo', 'csv');
 
         return match ($tipo) {
-            'csv' => $this->exportarCsv($id, $builder, $preview),
-            'telefones', 'emails' => $this->copiarContatos($id, $tipo, $builder, $preview),
+            'csv' => $this->exportarCsv($id, $executor, $preview),
+            'telefones', 'emails' => $this->copiarContatos($id, $tipo, $executor, $preview),
             default => redirect()->route('segmentos.show', $id)->with('erro', 'Tipo de exportação inválido.'),
         };
     }
 
-    public function exportarCsv(int $id, SegmentoSqlBuilder $builder, SegmentoPreviewService $preview)
+    public function exportarCsv(int $id, SegmentoQueryExecutor $executor, SegmentoPreviewService $preview)
     {
         try {
             $segmento = SegmentoCliente::findOrFail($id);
             $regra = $segmento->regra_json ?? [];
-            $sqlData = $builder->build($regra);
-            $previewData = $preview->preview($sqlData['sql'], $sqlData['bindings'], $regra);
+            $exec = $executor->executar($regra);
+            $previewData = $preview->previewFromRows($exec['rows'], $regra, $exec['motor']);
             $rows = $previewData['exemplos'] ?? [];
 
             $filename = 'segmento_' . $segmento->segmento_cliente_id . '_' . now()->format('Ymd_His') . '.csv';
@@ -436,7 +440,7 @@ class SegmentoClienteController extends Controller
                 'segmento_cliente_id' => $segmento->segmento_cliente_id,
                 'canal' => 'exportacao',
                 'regra_json_snapshot' => $segmento->regra_json ?? [],
-                'sql_gerada_snapshot' => $sqlData['sql'],
+                'sql_gerada_snapshot' => $exec['sql'],
                 'total_encontrado' => $previewData['total'] ?? 0,
                 'total_processado' => count($rows),
                 'status' => ($previewData['ok'] ?? false) ? 'concluida' : 'erro',
@@ -458,13 +462,13 @@ class SegmentoClienteController extends Controller
         }
     }
 
-    public function copiarContatos(int $id, string $tipo, SegmentoSqlBuilder $builder, SegmentoPreviewService $preview)
+    public function copiarContatos(int $id, string $tipo, SegmentoQueryExecutor $executor, SegmentoPreviewService $preview)
     {
         try {
             $segmento = SegmentoCliente::findOrFail($id);
             $regra = $segmento->regra_json ?? [];
-            $sqlData = $builder->build($regra);
-            $previewData = $preview->preview($sqlData['sql'], $sqlData['bindings'], $regra);
+            $exec = $executor->executar($regra);
+            $previewData = $preview->previewFromRows($exec['rows'], $regra, $exec['motor']);
             $rows = $previewData['exemplos'] ?? [];
 
             $coluna = $tipo === 'emails' ? 'cli_email' : 'cli_telefone';
@@ -482,20 +486,22 @@ class SegmentoClienteController extends Controller
         }
     }
 
-    private function validarEGerarPreview(array $regra, SegmentoRuleValidator $validator, SegmentoSqlBuilder $builder, SegmentoPreviewService $preview)
+    private function validarEGerarPreview(array $regra, SegmentoRuleValidator $validator, SegmentoQueryExecutor $executor, SegmentoPreviewService $preview, array $context = [])
     {
         $regra = SegmentoRuleHelper::enrichRule($regra);
         $validator->validar($regra);
-        $sqlData = $builder->build($regra);
-        $previewData = $preview->preview($sqlData['sql'], $sqlData['bindings'], $regra);
+        $exec = $executor->executar($regra, $context);
+        $previewData = $preview->previewFromRows($exec['rows'], $regra, $exec['motor']);
 
         return response()->json([
             'ok' => true,
             'regra' => $regra,
-            'sql' => $sqlData['sql'],
-            'bindings' => $sqlData['bindings'],
+            'sql' => $exec['sql'],
+            'bindings' => $exec['bindings'],
+            'motor' => $exec['motor'],
             'preview' => $previewData,
             'resumo' => $previewData['resumo'] ?? (new SegmentoRuleExplainer())->resumoRegra($regra),
+            'logs' => $exec['logs'] ?? [],
         ]);
     }
 

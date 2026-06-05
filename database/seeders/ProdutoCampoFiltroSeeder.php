@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\SegmentoClienteCampo;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -14,35 +15,32 @@ class ProdutoCampoFiltroSeeder extends Seeder
             return;
         }
 
-        $table = 'segmento_cliente_campo';
-        $columns = Schema::getColumnListing($table);
-
-        $produtos = Schema::hasTable('produtos')
-            ? DB::table('produtos')->where('ativo', 'S')->orderBy('nome')->pluck('nome')->values()->all()
-            : [];
-
-        $payload = [
-            'campo' => 'produto_comprado',
-            'nome' => 'Produto comprado',
-            'tipo' => 'select',
-            'descricao' => 'Filtra clientes que compraram um produto específico.',
-            'ativo' => 'S',
-            'opcoes' => json_encode($produtos, JSON_UNESCAPED_UNICODE),
-            'categoria' => 'Pedido',
-            'ordem' => 90,
-            'cadastrado' => now(),
-            'atualizado' => now(),
-        ];
-
-        $row = [];
-        foreach ($payload as $key => $value) {
-            if (in_array($key, $columns, true)) {
-                $row[$key] = $value;
+        $produtos = [];
+        if (Schema::hasTable('produtos')) {
+            $query = DB::table('produtos')->whereNotNull('nome')->where('nome', '!=', '');
+            if (Schema::hasColumn('produtos', 'ativo')) {
+                $query->where('ativo', 'S');
             }
+            $produtos = $query->orderBy('nome')->pluck('nome')->filter()->values()->all();
         }
 
-        if (in_array('campo', $columns, true)) {
-            DB::table($table)->updateOrInsert(['campo' => 'produto_comprado'], $row);
+        if ($produtos === []) {
+            return;
         }
+
+        SegmentoClienteCampo::updateOrCreate(
+            ['chave' => 'produto_comprado'],
+            [
+                'label' => 'Produto comprado',
+                'descricao' => 'Produto comprado em algum pedido confirmado.',
+                'categoria' => 'produto',
+                'tipo_valor' => 'select',
+                'expressao_sql' => 'prod.produtos_comprados',
+                'operadores_json' => ['equals', 'not_equals', 'contains', 'not_contains', 'starts_with', 'ends_with', 'is_empty', 'is_not_empty'],
+                'opcoes_json' => $produtos,
+                'ativo' => 'S',
+                'ordem' => 20,
+            ]
+        );
     }
 }
