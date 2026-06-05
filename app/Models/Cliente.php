@@ -9,8 +9,8 @@ class Cliente extends Model
     protected $table = 'cliente';
     protected $primaryKey = 'cliente_id';
 
-    const CREATED_AT = 'created_at';
-    const UPDATED_AT = 'updated_at';
+    const CREATED_AT = 'cadastrado';
+    const UPDATED_AT = 'atualizado';
 
     protected $fillable = [
         'cli_nome',
@@ -27,6 +27,7 @@ class Cliente extends Model
         'cli_funcionario',
         'cli_pontos_totais',
         'cli_proxima_compra',
+        'cliente_origem_id',
         'excluido',
     ];
 
@@ -34,6 +35,8 @@ class Cliente extends Model
         'cli_data_nascimento' => 'date',
         'cli_proxima_compra' => 'datetime',
         'excluido' => 'datetime',
+        'cadastrado' => 'datetime',
+        'atualizado' => 'datetime',
     ];
 
     public function pedidos()

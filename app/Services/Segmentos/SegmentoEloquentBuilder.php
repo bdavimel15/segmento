@@ -222,6 +222,7 @@ class SegmentoEloquentBuilder
             'primeira_compra' => $this->applyPrimeiraCompra($query, $operator, $value),
             'valor_total_comprado' => $this->applyValorTotal($query, $operator, $value),
             'cashback' => $this->applyCashback($query, $operator, $value),
+            'cashback_expira_em' => $this->applyCashbackExpira($query, $operator, $value),
             'produto_comprado', 'produto_nome', 'produto' => $this->applyProdutoComprado($query, $operator, (string) $value),
             'carrinho_abandonado' => $this->applyCarrinho($query, $operator),
             default => throw new RuntimeException("Campo Eloquent não implementado: {$field}"),
@@ -344,6 +345,7 @@ class SegmentoEloquentBuilder
             'month_equals' => $value === 'current' || $value === 'atual'
                 ? $query->whereMonth($column, $today->month)
                 : $query->whereMonth($column, (int) $value),
+            'month_between' => $this->applyMonthBetween($query, $column, $value),
             'is_empty' => $query->whereNull($column),
             'is_not_empty' => $query->whereNotNull($column),
             default => throw new RuntimeException("Operador data não suportado: {$op}"),
@@ -364,10 +366,35 @@ class SegmentoEloquentBuilder
         $query->whereBetween(DB::raw("DATE({$column})"), [Carbon::parse((string) $start), Carbon::parse((string) $end)]);
     }
 
+    private function applyMonthBetween(Builder $query, string $column, mixed $value): void
+    {
+        if (is_array($value)) {
+            $start = (int) ($value[0] ?? 1);
+            $end = (int) ($value[1] ?? 12);
+        } else {
+            $parts = preg_split('/\s*(?:,|e|a|-)\s*/iu', (string) $value, -1, PREG_SPLIT_NO_EMPTY);
+            $start = (int) ($parts[0] ?? 1);
+            $end = (int) ($parts[1] ?? 12);
+        }
+
+        $start = max(1, min($start, 12));
+        $end = max(1, min($end, 12));
+
+        if ($start > $end) {
+            [$start, $end] = [$end, $start];
+        }
+
+        if (DB::getDriverName() === 'sqlite') {
+            $query->whereBetween(DB::raw("CAST(strftime('%m', {$column}) AS INTEGER)"), [$start, $end]);
+        } else {
+            $query->whereBetween(DB::raw("MONTH({$column})"), [$start, $end]);
+        }
+    }
+
     private function applyIdade(Builder $query, string $op, mixed $value): void
     {
         $idadeExpr = DB::getDriverName() === 'sqlite'
-            ? "(CAST(strftime('%Y','now','localtime') AS INTEGER) - CAST(strftime('%Y', cli_data_nascimento) AS INTEGER))"
+            ? "(CAST(strftime('%Y','now','localtime') AS INTEGER) - CAST(strftime('%Y', cli_data_nascimento) AS INTEGER) - (strftime('%m-%d','now','localtime') < strftime('%m-%d', cli_data_nascimento)))"
             : 'TIMESTAMPDIFF(YEAR, cli_data_nascimento, CURDATE())';
 
         match ($op) {
@@ -460,6 +487,23 @@ class SegmentoEloquentBuilder
         $this->applyNumericSubquery($query, $sub, $op, $value);
     }
 
+    private function applyCashbackExpira(Builder $query, string $op, mixed $value): void
+    {
+        $expiraExpr = DB::getDriverName() === 'sqlite'
+            ? "(SELECT MAX(datetime(COALESCE(cadastrado, 'now'), '+30 days')) FROM cashback WHERE cliente_id = cliente.cliente_id AND excluido IS NULL)"
+            : "(SELECT MAX(DATE_ADD(COALESCE(cadastrado, NOW()), INTERVAL 30 DAY)) FROM cashback WHERE cliente_id = cliente.cliente_id AND excluido IS NULL)";
+
+        $today = Carbon::today();
+
+        match ($op) {
+            'next_x_days' => $query->whereRaw("DATE({$expiraExpr}) BETWEEN ? AND ?", [$today->toDateString(), $today->copy()->addDays((int) $value)->toDateString()]),
+            'before_date' => $query->whereRaw("DATE({$expiraExpr}) < ?", [Carbon::parse((string) $value)->toDateString()]),
+            'after_date' => $query->whereRaw("DATE({$expiraExpr}) > ?", [Carbon::parse((string) $value)->toDateString()]),
+            'equals_date' => $query->whereRaw("DATE({$expiraExpr}) = ?", [Carbon::parse((string) $value)->toDateString()]),
+            default => throw new RuntimeException("Operador cashback_expira_em não suportado: {$op}"),
+        };
+    }
+
     private function applyNumericSubquery(Builder $query, string $sub, string $op, mixed $value): void
     {
         match ($op) {
@@ -497,20 +541,21 @@ class SegmentoEloquentBuilder
         };
 
         if (in_array($op, ['not_equals', 'not_contains'], true)) {
-            $query->whereNotExists(function ($sub) use ($normalized, $op) {
-                $sub->from('cliente as c2')
-                    ->whereColumn('c2.cliente_id', 'cliente.cliente_id')
-                    ->where(function ($q) use ($normalized, $op) {
-                        if (Schema::hasTable('pedido_produto_cliente') && Schema::hasTable('produtos')) {
-                            $q->whereExists(function ($ppc) use ($normalized, $op) {
-                                $ppc->from('pedido_produto_cliente as ppc')
-                                    ->join('produtos as pr', 'pr.produto_id', '=', 'ppc.produto_id')
-                                    ->whereColumn('ppc.cliente_id', 'c2.cliente_id')
-                                    ->whereRaw($this->produtoLikeClause('pr.nome', $op), $this->produtoLikeBindings($normalized, 'contains'));
-                            });
-                        }
+            if (Schema::hasTable('pedido_produto_cliente') && Schema::hasTable('produtos')) {
+                $query->whereNotExists(function ($sub) use ($normalized) {
+                    $sub->from('pedido_produto_cliente as ppc')
+                        ->join('produtos as pr', 'pr.produto_id', '=', 'ppc.produto_id')
+                        ->whereColumn('ppc.cliente_id', 'cliente.cliente_id')
+                        ->whereRaw($this->produtoLikeClause('pr.nome', 'contains'), $this->produtoLikeBindings($normalized, 'contains'));
+                });
+            } else {
+                $query->whereDoesntHave('pedidosConfirmados', function (Builder $pq) use ($normalized) {
+                    $pq->whereHas('itens.produto', function (Builder $prq) use ($normalized) {
+                        $col = Schema::hasColumn('produto', 'pro_nome') ? 'pro_nome' : 'nome';
+                        $prq->whereRaw($this->produtoLikeClause($col, 'contains'), $this->produtoLikeBindings($normalized, 'contains'));
                     });
-            });
+                });
+            }
         } else {
             $query->where($callback);
         }
@@ -540,7 +585,13 @@ class SegmentoEloquentBuilder
     private function applyCarrinho(Builder $query, string $op): void
     {
         if (! Schema::hasTable('view_carrinho_abandonado')) {
-            throw new RuntimeException('View view_carrinho_abandonado não disponível.');
+            if (in_array($op, ['is_true', 'exists'], true)) {
+                $query->whereRaw('1 = 0');
+
+                return;
+            }
+
+            return;
         }
 
         $exists = fn (Builder $q) => $q->whereExists(function ($sub) {

@@ -199,6 +199,9 @@ class SegmentoSqlBuilder
             'greater_or_equal' => ["COALESCE({$expr}, 0) >= ?", [$value]],
             'less_than' => ["COALESCE({$expr}, 0) < ?", [$value]],
             'less_or_equal' => ["COALESCE({$expr}, 0) <= ?", [$value]],
+            'between' => $this->betweenSql($expr, $value),
+            'in' => $this->inSql($expr, $value, false),
+            'not_in' => $this->inSql($expr, $value, true),
             'contains' => ["{$expr} LIKE ?", ['%' . $value . '%']],
             'not_contains' => ["{$expr} NOT LIKE ?", ['%' . $value . '%']],
             'starts_with' => ["{$expr} LIKE ?", [$value . '%']],
@@ -208,6 +211,9 @@ class SegmentoSqlBuilder
             'more_than_x_days_ago' => $this->daysAgoSql($expr, 'more', (int)$value),
             'less_than_x_days_ago' => $this->daysAgoSql($expr, 'less', (int)$value),
             'last_x_days' => $this->daysAgoSql($expr, 'less', (int)$value),
+            'last_x_months' => $this->lastMonthsSql($expr, (int)$value),
+            'last_x_years' => $this->lastYearsSql($expr, (int)$value),
+            'between_dates' => $this->betweenDatesSql($expr, $value),
             'next_x_days' => $this->nextDaysSql($expr, (int)$value),
             'exactly_x_days_ago' => $this->exactlyDaysAgoSql($expr, (int)$value),
             'yesterday' => $this->yesterdaySql($expr),
@@ -419,6 +425,72 @@ class SegmentoSqlBuilder
     private function isSqlite(): bool
     {
         return DB::getDriverName() === 'sqlite';
+    }
+
+    /** @return array{0: string, 1: array<int, mixed>} */
+    private function betweenSql(string $expr, mixed $value): array
+    {
+        if (is_array($value)) {
+            $min = $value[0] ?? null;
+            $max = $value[1] ?? null;
+        } else {
+            $parts = preg_split('/\s*(?:,|e|a|-)\s*/iu', (string) $value, -1, PREG_SPLIT_NO_EMPTY);
+            $min = $parts[0] ?? null;
+            $max = $parts[1] ?? null;
+        }
+
+        return ["COALESCE({$expr}, 0) BETWEEN ? AND ?", [(float) $min, (float) $max]];
+    }
+
+    /** @return array{0: string, 1: array<int, mixed>} */
+    private function betweenDatesSql(string $expr, mixed $value): array
+    {
+        if (is_array($value)) {
+            $start = $value[0] ?? null;
+            $end = $value[1] ?? null;
+        } else {
+            $parts = preg_split('/\s*(?:,|e|a|-)\s*/iu', (string) $value, -1, PREG_SPLIT_NO_EMPTY);
+            $start = $parts[0] ?? null;
+            $end = $parts[1] ?? null;
+        }
+
+        return [$this->dateOnlySql($expr) . ' BETWEEN ? AND ?', [(string) $start, (string) $end]];
+    }
+
+    /** @return array{0: string, 1: array<int, mixed>} */
+    private function lastMonthsSql(string $expr, int $months): array
+    {
+        if ($this->isSqlite()) {
+            return [$this->dateOnlySql($expr) . " >= date('now', 'localtime', ?)", ['-' . max(0, $months) . ' months']];
+        }
+
+        return ["{$expr} >= DATE_SUB(NOW(), INTERVAL ? MONTH)", [$months]];
+    }
+
+    /** @return array{0: string, 1: array<int, mixed>} */
+    private function lastYearsSql(string $expr, int $years): array
+    {
+        if ($this->isSqlite()) {
+            return [$this->dateOnlySql($expr) . " >= date('now', 'localtime', ?)", ['-' . max(0, $years) . ' years']];
+        }
+
+        return ["{$expr} >= DATE_SUB(NOW(), INTERVAL ? YEAR)", [$years]];
+    }
+
+    /** @return array{0: string, 1: array<int, mixed>} */
+    private function inSql(string $expr, mixed $value, bool $negate): array
+    {
+        $items = is_array($value) ? $value : preg_split('/\s*,\s*/', (string) $value, -1, PREG_SPLIT_NO_EMPTY);
+        $items = array_values(array_filter(array_map('trim', $items), fn ($v) => $v !== ''));
+
+        if ($items === []) {
+            return $negate ? ['1 = 1', []] : ['1 = 0', []];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($items), '?'));
+        $operator = $negate ? 'NOT IN' : 'IN';
+
+        return ["{$expr} {$operator} ({$placeholders})", $items];
     }
 
     private function orderSql(array $order): string

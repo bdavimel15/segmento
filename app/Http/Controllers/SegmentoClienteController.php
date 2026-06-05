@@ -15,7 +15,6 @@ use App\Services\Segmentos\SegmentoRuleHelper;
 use App\Services\Segmentos\SegmentoRuleValidator;
 use App\Services\Segmentos\SegmentoQueryExecutor;
 use App\Services\Segmentos\SegmentoSemanticParser;
-use App\Services\Segmentos\SegmentoSqlBuilder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -423,6 +422,12 @@ class SegmentoClienteController extends Controller
 
     public function exportar(Request $request, int $id, SegmentoQueryExecutor $executor, SegmentoPreviewService $preview)
     {
+        $segmento = SegmentoCliente::findOrFail($id);
+
+        if ($segmento->status_validacao !== 'validada') {
+            return redirect()->route('segmentos.show', $id)->with('erro', 'Valide o segmento antes de exportar.');
+        }
+
         $tipo = (string) $request->query('tipo', 'csv');
 
         return match ($tipo) {
@@ -507,6 +512,7 @@ class SegmentoClienteController extends Controller
                 'sql' => $exec['sql'],
                 'bindings' => $exec['bindings'],
                 'motor' => $exec['motor'],
+                'logs' => $exec['logs'] ?? [],
                 'preview' => $previewData,
                 'total' => $previewData['total'] ?? 0,
                 'clientes' => $previewData['exemplos'] ?? [],
@@ -577,23 +583,40 @@ class SegmentoClienteController extends Controller
         }
 
         if ($campo === 'produto_comprado') {
-            if (!Schema::hasTable('produtos')) {
-                return response()->json([]);
+            if (Schema::hasTable('produtos')) {
+                $query = DB::table('produtos')->whereNotNull('nome')->where('nome', '!=', '');
+
+                if (Schema::hasColumn('produtos', 'ativo')) {
+                    $query->where('ativo', 'S');
+                }
+
+                if ($q !== '') {
+                    $query->where('nome', 'like', '%' . $q . '%');
+                }
+
+                return response()->json(
+                    $query->distinct()->orderBy('nome')->limit(50)->pluck('nome')->values()
+                );
             }
 
-            $query = DB::table('produtos')->whereNotNull('nome')->where('nome', '!=', '');
+            if (Schema::hasTable('produto')) {
+                $nomeCol = Schema::hasColumn('produto', 'pro_nome') ? 'pro_nome' : 'nome';
+                $query = DB::table('produto')->whereNotNull($nomeCol)->where($nomeCol, '!=', '');
 
-            if (Schema::hasColumn('produtos', 'ativo')) {
-                $query->where('ativo', 'S');
+                if (Schema::hasColumn('produto', 'excluido')) {
+                    $query->whereNull('excluido');
+                }
+
+                if ($q !== '') {
+                    $query->where($nomeCol, 'like', '%' . $q . '%');
+                }
+
+                return response()->json(
+                    $query->distinct()->orderBy($nomeCol)->limit(50)->pluck($nomeCol)->values()
+                );
             }
 
-            if ($q !== '') {
-                $query->where('nome', 'like', '%' . $q . '%');
-            }
-
-            return response()->json(
-                $query->distinct()->orderBy('nome')->limit(50)->pluck('nome')->values()
-            );
+            return response()->json([]);
         }
 
         $listasFixas = [

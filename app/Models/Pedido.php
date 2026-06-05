@@ -19,6 +19,8 @@ class Pedido extends Model
         'estabelecimento_id',
         'status_id',
         'ped_valor_total',
+        'canal_pedido',
+        'forma_pagamento',
         'excluido',
     ];
 

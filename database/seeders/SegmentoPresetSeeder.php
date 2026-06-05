@@ -17,34 +17,40 @@ class SegmentoPresetSeeder extends Seeder
         }
 
         $presets = [
-            $this->preset('Clientes que compraram hoje', 'Compras', 'Clientes com último pedido confirmado no dia atual.', 'ultima_compra today', 25, 'random asc', '🛍️', '#7C5CFF'),
-            $this->preset('Clientes que compraram ontem', 'Compras', 'Clientes com último pedido confirmado ontem.', 'ultima_compra yesterday', 25, 'random asc', '🛒', '#7C5CFF'),
-            $this->preset('Clientes sem comprar há 30 dias', 'Recência', 'Clientes que não compram há mais de 30 dias.', 'ultima_compra more_than_x_days_ago 30', 25, 'random asc', '⏳', '#F59E0B'),
-            $this->preset('Clientes sem comprar há 60 dias', 'Recência', 'Clientes que não compram há mais de 60 dias.', 'ultima_compra more_than_x_days_ago 60', 25, 'random asc', '⏳', '#F97316'),
-            $this->preset('Clientes sem comprar há 90 dias', 'Recência', 'Clientes que não compram há mais de 90 dias.', 'ultima_compra more_than_x_days_ago 90', 25, 'random asc', '⚠️', '#EF4444'),
-            $this->preset('Clientes com cashback', 'Cashback', 'Clientes com saldo de cashback maior que zero.', 'cashback_saldo greater_than 0', 25, 'random asc', '💰', '#22C55E'),
-            $this->preset('Cashback expirando em 7 dias', 'Cashback', 'Clientes com cashback próximo do vencimento.', 'cashback_expira_em next_x_days 7', 25, 'random asc', '⏰', '#F59E0B'),
-            $this->preset('Cashback expirando em 30 dias', 'Cashback', 'Clientes com cashback vencendo nos próximos 30 dias.', 'cashback_expira_em next_x_days 30', 25, 'random asc', '💸', '#F59E0B'),
-            $this->preset('Aniversariantes do dia', 'Aniversário', 'Clientes que fazem aniversário hoje.', 'aniversario today', 25, 'random asc', '🎂', '#EC4899'),
-            $this->preset('Aniversariantes do mês', 'Aniversário', 'Clientes que fazem aniversário no mês atual.', 'aniversario month_equals current', 25, 'random asc', '🎁', '#EC4899'),
-            $this->preset('Clientes cadastrados nos últimos 7 dias', 'Cadastro', 'Clientes novos cadastrados nos últimos 7 dias.', 'data_cadastro last_x_days 7', 25, 'data_cadastro desc', '🆕', '#3B82F6'),
-            $this->preset('Clientes cadastrados nos últimos 30 dias', 'Cadastro', 'Clientes novos cadastrados nos últimos 30 dias.', 'data_cadastro last_x_days 30', 25, 'data_cadastro desc', '📋', '#3B82F6'),
-            $this->preset('Clientes cadastrados sem pedido', 'Cadastro', 'Clientes cadastrados que ainda não fizeram pedidos confirmados.', 'qtd_pedidos equals 0', 25, 'random asc', '🧾', '#6366F1'),
-            $this->preset('Clientes com carrinho abandonado', 'Carrinho', 'Clientes com carrinho abandonado para recuperação.', 'carrinho_abandonado is_true', 25, 'random asc', '🛒', '#F97316'),
-            $this->preset('Clientes com newsletter ativa', 'Engajamento', 'Clientes que aceitaram receber comunicações.', 'newsletter is_true', 25, 'random asc', '📩', '#14B8A6'),
-            $this->preset('Clientes sem newsletter', 'Engajamento', 'Clientes que não aceitaram newsletter.', 'newsletter is_false', 25, 'random asc', '🚫', '#64748B'),
-            $this->preset('Clientes com mais de 2 pedidos', 'Pedidos', 'Clientes com pelo menos 3 pedidos confirmados.', 'qtd_pedidos greater_than 2', 25, 'qtd_pedidos desc', '📦', '#8B5CF6'),
-            $this->preset('Clientes com mais de 5 pedidos', 'Pedidos', 'Clientes recorrentes com mais de 5 pedidos confirmados.', 'qtd_pedidos greater_than 5', 25, 'qtd_pedidos desc', '⭐', '#8B5CF6'),
-            $this->preset('Top 10 clientes por pedidos', 'Pedidos', 'Ranking dos 10 clientes com mais pedidos.', 'qtd_pedidos greater_than 0', 10, 'qtd_pedidos desc', '🏆', '#EAB308'),
-            $this->preset('Top 10 clientes por valor comprado', 'Compras', 'Ranking dos clientes com maior valor total comprado.', 'valor_total_compras greater_than 0', 10, 'valor_total_compras desc', '💎', '#EAB308'),
-            $this->preset('Clientes mulheres', 'Perfil', 'Clientes com sexo feminino.', 'sexo equals Feminino', 25, 'random asc', '👩', '#EC4899'),
-            $this->preset('Clientes homens', 'Perfil', 'Clientes com sexo masculino.', 'sexo equals Masculino', 25, 'random asc', '👨', '#3B82F6'),
-            $this->preset('Clientes de Feira de Santana', 'Localização', 'Clientes cadastrados no município de Feira de Santana.', 'municipio contains Feira de Santana', 25, 'random asc', '📍', '#10B981'),
-            $this->preset('Clientes com pontos', 'Fidelidade', 'Clientes com pontos acumulados no programa de fidelidade.', 'pontos_totais greater_than 0', 25, 'pontos_totais desc', '🎯', '#8B5CF6'),
-            $this->preset('Clientes que compraram picanha', 'Produtos', 'Clientes que compraram o produto Picanha.', 'produto_comprado contains picanha', 25, 'random asc', '🥩', '#EF4444'),
-            $this->preset('Clientes que compraram bebida', 'Produtos', 'Clientes que compraram produtos relacionados a bebidas.', 'produto_comprado contains bebida', 25, 'random asc', '🥤', '#06B6D4'),
-            $this->preset('Clientes homens sem comprar há 30 dias', 'Combinados', 'Homens que não compram há mais de 30 dias.', 'sexo equals Masculino AND ultima_compra more_than_x_days_ago 30', 25, 'random asc', '🔄', '#7C5CFF'),
-            $this->preset('Mulheres com cashback', 'Combinados', 'Clientes mulheres que possuem cashback disponível.', 'sexo equals Feminino AND cashback_saldo greater_than 0', 25, 'random asc', '💜', '#A855F7'),
+            $this->make('Clientes que compraram hoje', 'Compras', 'Clientes com último pedido confirmado no dia atual.', [['field' => 'ultimo_pedido', 'operator' => 'today', 'value' => null]]),
+            $this->make('Clientes que compraram ontem', 'Compras', 'Clientes com último pedido confirmado ontem.', [['field' => 'ultimo_pedido', 'operator' => 'yesterday', 'value' => null]]),
+            $this->make('Clientes sem comprar há 30 dias', 'Recência', 'Clientes que não compram há mais de 30 dias.', [['field' => 'ultimo_pedido', 'operator' => 'more_than_x_days_ago', 'value' => 30]]),
+            $this->make('Clientes sem comprar há 60 dias', 'Recência', 'Clientes que não compram há mais de 60 dias.', [['field' => 'ultimo_pedido', 'operator' => 'more_than_x_days_ago', 'value' => 60]]),
+            $this->make('Clientes sem comprar há 90 dias', 'Recência', 'Clientes que não compram há mais de 90 dias.', [['field' => 'ultimo_pedido', 'operator' => 'more_than_x_days_ago', 'value' => 90]]),
+            $this->make('Clientes com cashback', 'Cashback', 'Clientes com saldo de cashback maior que zero.', [['field' => 'cashback', 'operator' => 'greater_than', 'value' => 0]]),
+            $this->make('Cashback expirando em 7 dias', 'Cashback', 'Clientes com cashback próximo do vencimento.', [['field' => 'cashback_expira_em', 'operator' => 'next_x_days', 'value' => 7]]),
+            $this->make('Cashback expirando em 30 dias', 'Cashback', 'Clientes com cashback vencendo nos próximos 30 dias.', [['field' => 'cashback_expira_em', 'operator' => 'next_x_days', 'value' => 30]]),
+            $this->make('Aniversariantes do dia', 'Aniversário', 'Clientes que fazem aniversário hoje.', [['field' => 'nascimento', 'operator' => 'today', 'value' => null]]),
+            $this->make('Aniversariantes do mês', 'Aniversário', 'Clientes que fazem aniversário no mês atual.', [['field' => 'nascimento', 'operator' => 'month_equals', 'value' => 'current']]),
+            $this->make('Clientes cadastrados nos últimos 7 dias', 'Cadastro', 'Clientes novos cadastrados nos últimos 7 dias.', [['field' => 'data_cadastro', 'operator' => 'last_x_days', 'value' => 7]], 25, 'data_cadastro', 'desc'),
+            $this->make('Clientes cadastrados nos últimos 30 dias', 'Cadastro', 'Clientes novos cadastrados nos últimos 30 dias.', [['field' => 'data_cadastro', 'operator' => 'last_x_days', 'value' => 30]], 25, 'data_cadastro', 'desc'),
+            $this->make('Clientes cadastrados sem pedido', 'Cadastro', 'Clientes cadastrados que ainda não fizeram pedidos confirmados.', [['field' => 'qtd_pedidos', 'operator' => 'equals', 'value' => 0]]),
+            $this->make('Clientes com carrinho abandonado', 'Carrinho', 'Clientes com carrinho abandonado para recuperação.', [['field' => 'carrinho_abandonado', 'operator' => 'is_true', 'value' => null]]),
+            $this->make('Clientes com newsletter ativa', 'Engajamento', 'Clientes que aceitaram receber comunicações.', [['field' => 'newsletter', 'operator' => 'is_true', 'value' => null]]),
+            $this->make('Clientes sem newsletter', 'Engajamento', 'Clientes que não aceitaram newsletter.', [['field' => 'newsletter', 'operator' => 'is_false', 'value' => null]]),
+            $this->make('Clientes com mais de 2 pedidos', 'Pedidos', 'Clientes com pelo menos 3 pedidos confirmados.', [['field' => 'qtd_pedidos', 'operator' => 'greater_than', 'value' => 2]], 25, 'qtd_pedidos', 'desc'),
+            $this->make('Clientes com mais de 5 pedidos', 'Pedidos', 'Clientes recorrentes com mais de 5 pedidos confirmados.', [['field' => 'qtd_pedidos', 'operator' => 'greater_than', 'value' => 5]], 25, 'qtd_pedidos', 'desc'),
+            $this->make('Top 10 clientes por pedidos', 'Pedidos', 'Ranking dos 10 clientes com mais pedidos.', [['field' => 'qtd_pedidos', 'operator' => 'greater_than', 'value' => 0]], 10, 'qtd_pedidos', 'desc'),
+            $this->make('Top 10 clientes por valor comprado', 'Compras', 'Ranking dos clientes com maior valor total comprado.', [['field' => 'valor_total_comprado', 'operator' => 'greater_than', 'value' => 0]], 10, 'valor_total_comprado', 'desc'),
+            $this->make('Clientes mulheres', 'Perfil', 'Clientes com sexo feminino.', [['field' => 'sexo', 'operator' => 'equals', 'value' => 'Feminino']]),
+            $this->make('Clientes homens', 'Perfil', 'Clientes com sexo masculino.', [['field' => 'sexo', 'operator' => 'equals', 'value' => 'Masculino']]),
+            $this->make('Clientes de Feira de Santana', 'Localização', 'Clientes cadastrados no município de Feira de Santana.', [['field' => 'municipio', 'operator' => 'contains', 'value' => 'Feira de Santana']]),
+            $this->make('Clientes com pontos', 'Fidelidade', 'Clientes com pontos acumulados no programa de fidelidade.', [['field' => 'pontos_totais', 'operator' => 'greater_than', 'value' => 0]], 25, 'pontos_totais', 'desc'),
+            $this->make('Clientes que compraram picanha', 'Produtos', 'Clientes que compraram o produto Picanha.', [['field' => 'produto_comprado', 'operator' => 'contains', 'value' => 'picanha']]),
+            $this->make('Clientes que compraram bebida', 'Produtos', 'Clientes que compraram produtos relacionados a bebidas.', [['field' => 'produto_comprado', 'operator' => 'contains', 'value' => 'bebida']]),
+            $this->make('Clientes homens sem comprar há 30 dias', 'Combinados', 'Homens que não compram há mais de 30 dias.', [
+                ['field' => 'sexo', 'operator' => 'equals', 'value' => 'Masculino'],
+                ['field' => 'ultimo_pedido', 'operator' => 'more_than_x_days_ago', 'value' => 30],
+            ]),
+            $this->make('Mulheres com cashback', 'Combinados', 'Clientes mulheres que possuem cashback disponível.', [
+                ['field' => 'sexo', 'operator' => 'equals', 'value' => 'Feminino'],
+                ['field' => 'cashback', 'operator' => 'greater_than', 'value' => 0],
+            ]),
         ];
 
         $now = now();
@@ -56,25 +62,43 @@ class SegmentoPresetSeeder extends Seeder
         }
     }
 
-    private function preset(string $nome, string $categoria, string $descricao, string $conditions, int $limit, string $order, string $icone, string $cor): array
-    {
+    /**
+     * @param  array<int, array{field: string, operator: string, value: mixed}>  $conditions
+     * @return array<string, mixed>
+     */
+    private function make(
+        string $nome,
+        string $categoria,
+        string $descricao,
+        array $conditions,
+        int $limit = 25,
+        string $orderField = 'random',
+        string $orderDirection = 'asc',
+    ): array {
         return [
             'nome' => $nome,
             'categoria' => $categoria,
             'descricao' => $descricao,
-            'icone' => $icone,
-            'cor' => $cor,
             'regra_json' => [
-                'version' => 1,
+                'version' => 2,
                 'entity' => 'cliente',
                 'logic' => 'AND',
-                'conditions' => $conditions,
+                'groups' => [[
+                    'logic' => 'AND',
+                    'conditions' => $conditions,
+                ]],
+                'conditions' => [],
                 'limit' => $limit,
-                'order' => $order,
+                'order' => [
+                    'field' => $orderField,
+                    'direction' => $orderDirection,
+                ],
+                'resumo_humano' => $descricao,
             ],
         ];
     }
 
+    /** @param  array<string, mixed>  $preset */
     private function buildRow(string $table, array $preset, int $ordem, $now): array
     {
         $columns = Schema::getColumnListing($table);
@@ -82,22 +106,11 @@ class SegmentoPresetSeeder extends Seeder
 
         $candidates = [
             'nome' => $preset['nome'],
-            'titulo' => $preset['nome'],
             'categoria' => $preset['categoria'],
             'descricao' => $preset['descricao'],
-            'resumo' => $preset['descricao'],
-            'icone' => $preset['icone'],
-            'cor' => $preset['cor'],
             'regra_json' => $regraJson,
-            'json' => $regraJson,
-            'payload' => $regraJson,
             'ativo' => 'S',
-            'status' => 'ativo',
             'ordem' => $ordem,
-            'criado_em' => $now,
-            'atualizado_em' => $now,
-            'created_at' => $now,
-            'updated_at' => $now,
             'cadastrado' => $now,
             'atualizado' => $now,
         ];

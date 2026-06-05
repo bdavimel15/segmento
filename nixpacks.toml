@@ -3,6 +3,8 @@ PHP_MEMORY_LIMIT = "512M"
 COMPOSER_ALLOW_SUPERUSER = "1"
 FORCE_HTTPS = "true"
 SESSION_SECURE_COOKIE = "true"
+APP_ENV = "production"
+APP_DEBUG = "false"
 
 [phases.setup]
 nixPkgs = [
@@ -28,6 +30,5 @@ cmds = [
   "php artisan view:clear || true",
   "php artisan cache:clear || true",
   "php artisan migrate --force",
-  "php artisan db:seed --class=SegmentoClienteCampoSeeder --force || true",
-  "php artisan db:seed --class=SegmentoPresetSeeder --force || true"
+  "php artisan db:seed --force || true"
 ]
