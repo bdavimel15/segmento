@@ -47,10 +47,9 @@
               @endif
             </td>
             <td>
-              @php use App\Support\SegmentadorUi; @endphp
-              <span class="badge {{ SegmentadorUi::statusBadgeClass($segmento->status_validacao) }}">
+              <span class="badge {{ \App\Support\SegmentadorUi::statusBadgeClass($segmento->status_validacao) }}">
                 <span class="badge-dot"></span>
-                {{ SegmentadorUi::statusLabel($segmento->status_validacao) }}
+                {{ \App\Support\SegmentadorUi::statusLabel($segmento->status_validacao) }}
               </span>
             </td>
             <td>

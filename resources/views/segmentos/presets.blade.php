@@ -17,8 +17,6 @@
 <div class="page-body">
 
   @php
-    use Illuminate\Support\Str;
-
     $baseCategorias = [
       'aniversario'  => ['label' => 'Aniversário',  'icon' => '🎂', 'cor' => '#F59E0B'],
       'compras'      => ['label' => 'Compras',      'icon' => '🛍️', 'cor' => '#7C5CFF'],
@@ -40,7 +38,7 @@
 
     $normalizarCategoria = function ($categoria) {
       $categoria = trim((string) ($categoria ?: 'outros'));
-      $slug = Str::slug($categoria, '_');
+      $slug = \Illuminate\Support\Str::slug($categoria, '_');
 
       $aliases = [
         'aniversario' => 'aniversario',
@@ -88,7 +86,7 @@
       if (! isset($categorias[$catKey])) {
         $rawLabel = trim((string)($preset->categoria ?? 'Outros'));
         $categorias[$catKey] = $baseCategorias[$catKey] ?? [
-          'label' => $rawLabel !== '' ? Str::headline(str_replace(['_', '-'], ' ', $rawLabel)) : 'Outros',
+          'label' => $rawLabel !== '' ? \Illuminate\Support\Str::headline(str_replace(['_', '-'], ' ', $rawLabel)) : 'Outros',
           'icon' => '📁',
           'cor' => '#6B6680',
         ];

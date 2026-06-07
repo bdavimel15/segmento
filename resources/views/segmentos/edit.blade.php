@@ -34,8 +34,7 @@
             </div>
             <div class="form-group">
               <label class="form-label">Status atual</label>
-              @php use App\Support\SegmentadorUi; @endphp
-              <p><span class="badge {{ SegmentadorUi::statusBadgeClass($segmento->status_validacao) }}">{{ SegmentadorUi::statusLabel($segmento->status_validacao) }}</span></p>
+              <p><span class="badge {{ \App\Support\SegmentadorUi::statusBadgeClass($segmento->status_validacao) }}">{{ \App\Support\SegmentadorUi::statusLabel($segmento->status_validacao) }}</span></p>
               <span class="form-hint">A aprovação é feita pela equipe interna.</span>
             </div>
           </div>

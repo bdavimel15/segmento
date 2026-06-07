@@ -2,13 +2,12 @@
 @section('title', 'Análise — ' . $segmento->nome)
 
 @section('content')
-@php use App\Support\SegmentadorUi; @endphp
 <div class="admin-shell">
   <div class="page-header">
     <div class="page-header-left">
       <h1>{{ $segmento->nome }}</h1>
       <p>Análise técnica do segmento</p>
-      <span class="badge {{ SegmentadorUi::statusBadgeClass($segmento->status_validacao) }}">{{ SegmentadorUi::statusLabel($segmento->status_validacao) }}</span>
+      <span class="badge {{ \App\Support\SegmentadorUi::statusBadgeClass($segmento->status_validacao) }}">{{ \App\Support\SegmentadorUi::statusLabel($segmento->status_validacao) }}</span>
     </div>
     <a href="{{ route('admin.index') }}" class="btn btn-secondary">Voltar</a>
   </div>

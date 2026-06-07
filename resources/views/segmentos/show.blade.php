@@ -3,10 +3,9 @@
 
 @section('content')
 @php
-    use App\Support\SegmentadorUi;
-    $statusLabel = SegmentadorUi::statusLabel($segmento->status_validacao);
-    $badge = SegmentadorUi::statusBadgeClass($segmento->status_validacao);
-    $canExport = SegmentadorUi::canExportSegment($segmento->status_validacao);
+    $statusLabel = \App\Support\SegmentadorUi::statusLabel($segmento->status_validacao);
+    $badge = \App\Support\SegmentadorUi::statusBadgeClass($segmento->status_validacao);
+    $canExport = \App\Support\SegmentadorUi::canExportSegment($segmento->status_validacao);
     $previewOk = (bool)($previewData['ok'] ?? false);
     $exemplos = $previewData['exemplos'] ?? [];
     $statusClass = match ($segmento->status_validacao) {

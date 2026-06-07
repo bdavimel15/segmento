@@ -33,14 +33,11 @@
       </thead>
       <tbody>
         @forelse($segmentos as $segmento)
-          @php
-            use App\Support\SegmentadorUi;
-          @endphp
           <tr>
             <td><strong>{{ $segmento->nome }}</strong></td>
             <td class="td-muted">{{ $segmento->cadastrado ? \Carbon\Carbon::parse($segmento->cadastrado)->format('d/m/Y H:i') : '—' }}</td>
             <td>{{ number_format($segmento->ultima_previa_qtd ?? 0) }}</td>
-            <td><span class="badge {{ SegmentadorUi::statusBadgeClass($segmento->status_validacao) }}">{{ SegmentadorUi::statusLabel($segmento->status_validacao) }}</span></td>
+            <td><span class="badge {{ \App\Support\SegmentadorUi::statusBadgeClass($segmento->status_validacao) }}">{{ \App\Support\SegmentadorUi::statusLabel($segmento->status_validacao) }}</span></td>
             <td class="td-actions" style="justify-content:flex-end;">
               <a href="{{ route('admin.show', $segmento->segmento_cliente_id) }}" class="btn btn-secondary btn-sm">Analisar</a>
             </td>
